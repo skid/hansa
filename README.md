@@ -1,5 +1,9 @@
 # Hansa Teutonica online
 
+## Run it
+
+Just clone and `yarn` and `yarn dev`
+
 ## Frontend
 
 - State managed with immer.js
