@@ -1,0 +1,25 @@
+@import "../src/game/styles.scss";
+
+body {
+  font-family: monospace;
+  .center {
+    width: 550px;
+    margin: auto;
+  }
+  .player-conf {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+    span {
+      width: 100px;
+    }
+  }
+  .player-link {
+    margin-bottom: 10px;
+    div {
+      margin: 3px;
+      padding: 3px;
+      border: solid 1px #ccc;
+    }
+  }
+}
