@@ -21,3 +21,22 @@
 - Other players load the game via their unique player link.
 - Their moves overwrite the game state, so they can fuck up (or hack) the game for everyone. This is a dev server, not a final app.
 - If supabase supports pub/sub, changes to the game state are pushed to all other users
+
+## Contribute / Roadmap
+
+Here's what we have:
+
+- A functional game with all basic actions implemented
+- Flow control / turn management
+- A game map with 3 cities
+
+What we need:
+
+- Imeplement marker mechanics
+  - Render markers (in the routes and he player UI)
+  - Add actions and validators for each marker
+  - Implement the "place marker" phase
+- Finish the entire map and implement pan/zoom
+  - Just add the cities and routes at the correc coordinates
+  - Pan and zoom on the SVG element is useful too
+- Implement an end-game condition and decide who won
