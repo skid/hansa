@@ -14,7 +14,10 @@ export type GameClient = {
 /**
  * Creates a new game client.
  */
-export const useClient = (gameId: string, playerId: string): GameClient | null => {
+export const useClient = (
+  gameId: string,
+  playerId: string
+): GameClient | null => {
   const [immutableState, setState] = useState<GameState>();
 
   useEffect(() => {
@@ -35,14 +38,14 @@ export const useClient = (gameId: string, playerId: string): GameClient | null =
 
   useEffect(() => {
     if (gameId) {
-      supabase
+      const sub = supabase
         .from(`games:id=eq.${gameId}`)
         .on("UPDATE", (update) => {
           setState(update.new.state);
         })
         .subscribe();
       return () => {
-        supabase.removeAllSubscriptions();
+        supabase.removeSubscription(sub);
       };
     }
   }, [gameId]);
