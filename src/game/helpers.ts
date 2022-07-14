@@ -8,7 +8,7 @@ export const times = <T>(times: number, callback: (i: number) => T) => {
 };
 
 /**
- * Returns the current player
+ * Returns the player who's in turn
  */
 export const getPlayer = (s: GameState) => s.players[s.current.player];
 

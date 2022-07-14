@@ -21,6 +21,11 @@ const ClientContext = React.createContext<{ client: GameClient; ui: UIState }>({
   ui: { merch: false },
 });
 
+// Hook to access the client context
+const useGameClient = () => {
+  return useContext(ClientContext).client
+} 
+
 /**
  * Renders the entire application.
  * Takes a GameState as an input parameter
@@ -34,6 +39,9 @@ export const App = ({ gameId, playerId }: { gameId: string; playerId: string }) 
   }
 
   const { map, players } = client.state;
+
+  const currentPlayer = getPlayer(client.state);
+
 
   return (
     <ClientContext.Provider value={{ client, ui: { merch } }}>
@@ -57,7 +65,7 @@ export const App = ({ gameId, playerId }: { gameId: string; playerId: string }) 
           </g>
         </svg>
 
-        <PlayerControls merch={merch} setMerch={setMerch} />
+        {currentPlayer.id === playerId ? <PlayerControls merch={merch} setMerch={setMerch} /> : null}
 
         <div id="players">
           {players.map((_, i) => (
@@ -70,13 +78,14 @@ export const App = ({ gameId, playerId }: { gameId: string; playerId: string }) 
 };
 
 export const PlayerControls = ({ merch, setMerch }: { merch: boolean; setMerch: (m: boolean) => void }) => {
-  const { state, action } = useContext(ClientContext).client;
-  const p = getPlayer(state);
+  const { state, action } = useGameClient();
+  const player = getPlayer(state);
   const acts = availableActionsCount(state) - state.current.actions.length;
   const { phase } = state.current;
 
+
   return (
-    <div className={`player-controls ${p.color}`}>
+    <div className={`player-controls ${player.color}`}>
       <div className="info">
         {phase === "Actions"
           ? acts
@@ -98,7 +107,7 @@ export const PlayerControls = ({ merch, setMerch }: { merch: boolean; setMerch: 
         <span className="btn">↪️</span>
       </div>
       <div className="actions">
-        <div className={`next-token ${p.color}${merch ? " merchant" : ""}`} onClick={() => setMerch(!merch)} />
+        <div className={`next-token ${player.color}${merch ? " merchant" : ""}`} onClick={() => setMerch(!merch)} />
 
         <div className="action-options">
           {phase === "Actions" && (
