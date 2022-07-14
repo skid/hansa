@@ -1,0 +1,8 @@
+{
+  "editor.formatOnSave": true,
+  "editor.detectIndentation": false,
+  "editor.rulers": [120],
+  "editor.tabSize": 2,
+  "typescript.tsdk": "api/node_modules/typescript/lib",
+  "editor.accessibilitySupport": "off"
+}

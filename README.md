@@ -37,7 +37,7 @@ What we need:
   - Add actions and validators for each marker
   - Implement the "place marker" phase
 - Finish the entire map and implement pan/zoom
-  - Just add the cities and routes at the correc coordinates
+  - Just add the cities and routes at the correct coordinates
   - Pan and zoom on the SVG element is useful too
 - Implement an end-game condition and decide who won
 
