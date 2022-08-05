@@ -1,4 +1,4 @@
-import { canUpgrade, cityOwner, findRoutes, getPlayer, getPost, incomeValue } from "./helpers";
+import { canEndTurn, canUpgrade, cityOwner, getPlayer, getPost, incomeValue } from "./helpers";
 import { ActionName, ActionParams, PhaseState, GameState, TokenState, RouteReward } from "./model";
 
 /**
@@ -33,6 +33,10 @@ export const executeAction = <T extends ActionName>(
       return OfficeAction(state, params as ActionParams<"route-office">);
     case "route-upgrade":
       return UpgradeAction(state, params as ActionParams<"route-upgrade">);
+    case "marker-place":
+      return MarkerPlaceAction(state, params as ActionParams<"marker-place">);
+    case "marker-use":
+      return MarkerUseAction(state, params as ActionParams<"marker-use">);
     default:
       throw new Error(`Unknown action "${name}"`);
   }
@@ -42,6 +46,21 @@ export const executeAction = <T extends ActionName>(
  * Ends the turn for the current player.
  */
 export const DoneAction = (s: GameState) => {
+  if (!canEndTurn(s)) {
+    return s.current;
+  }
+
+  // When you end your turn, you must place all unplaced markers
+  if (getPlayer(s).unplacedMarkers.length > 0) {
+    return {
+      phase: "Markers",
+      player: s.current.player,
+      actions: [],
+      hand: [],
+      prev: s.current,
+    } as PhaseState;
+  }
+
   if (s.current.phase === "Displacement") {
     return s.current.prev!;
   }
@@ -140,7 +159,7 @@ export const DisplaceAction = (s: GameState, params: ActionParams<"displace">) =
     phase: "Displacement",
     player: displacedToken.owner,
     actions: [],
-    hand: [displacedToken.merch ? "m" : "t"],
+    hand: [{ token: displacedToken.merch ? "m" : "t", owner: displacedToken.owner }],
     prev: s.current,
   } as PhaseState;
 };
@@ -164,7 +183,7 @@ export const DisplacePlaceAction = (s: GameState, params: ActionParams<"displace
   const token = { owner: s.current.player } as TokenState;
 
   if (s.current.actions.length === 0) {
-    token.merch = s.current.hand.pop() === "m";
+    token.merch = s.current.hand.pop()?.token === "m";
   } else {
     // Placing tokens from general stock and personal supply
     const { generalStock, personalSupply } = getPlayer(s);
@@ -197,11 +216,11 @@ export const MoveCollectAction = (s: GameState, params: ActionParams<"move-colle
       phase: "Collection",
       player: s.current.player,
       prev: s.current,
-      hand: [token.merch ? "m" : "t"],
+      hand: [{ token: token.merch ? "m" : "t", owner: token.owner }],
       actions: [{ name: "move-collect", params }],
     } as PhaseState;
   } else if (s.current.phase === "Collection") {
-    s.current.hand.push(token.merch ? "m" : "t");
+    s.current.hand.push({ token: token.merch ? "m" : "t", owner: token.owner });
   }
 
   return s.current;
@@ -215,8 +234,13 @@ export const MoveCollectAction = (s: GameState, params: ActionParams<"move-colle
  *  - An equally big array of empty trading posts
  */
 export const MovePlaceAction = (s: GameState, params: ActionParams<"move-place">) => {
-  const merch = s.current.hand.shift() === "m";
-  s.routes[params.post[0]].tokens[params.post[1]] = { owner: s.current.player, merch };
+  const tok = s.current.hand.shift()!;
+  s.routes[params.post[0]].tokens[params.post[1]] = { owner: tok.owner, merch: tok.token === "m" };
+
+  if (s.current.hand.length === 0) {
+    // When you empty the hand revert to the actions phase immediately
+    return s.current.prev!;
+  }
 
   if (s.current.phase === "Collection") {
     // The first movement action means we started placing tokens
@@ -228,11 +252,6 @@ export const MovePlaceAction = (s: GameState, params: ActionParams<"move-place">
       player: s.current.player,
       prev: s.current.prev, // We discard the "collection" phase entirely
     } as PhaseState;
-  }
-
-  if (s.current.hand.length === 0) {
-    // When you empty the hand revert to the actions phase immediately
-    return s.current.prev!;
   }
 
   return s.current;
@@ -284,6 +303,19 @@ export const RouteAction = (s: GameState, params: ActionParams<"route">) => {
     });
   }
 
+  // Collect bonus markers
+  let endGame = false;
+  if (r.marker) {
+    const newMarker = s.markers.pop();
+    if (newMarker) {
+      getPlayer(s).unplacedMarkers.push(newMarker);
+    } else {
+      endGame = true;
+    }
+    getPlayer(s).readyMarkers.push(r.marker);
+    delete r.marker;
+  }
+
   // Assign points to players
   const fromOwner = cityOwner(s, route.from);
   const toOwner = cityOwner(s, route.to);
@@ -299,10 +331,14 @@ export const RouteAction = (s: GameState, params: ActionParams<"route">) => {
   return {
     phase: "Route",
     actions: [],
-    hand: [...Array.from(Array(merchants)).map((_) => "m"), ...Array.from(Array(tradesmen)).map((_) => "t")],
+    hand: [
+      ...Array.from(Array(merchants)).map((_) => ({ token: "m", owner: s.current.player })),
+      ...Array.from(Array(tradesmen)).map((_) => ({ token: "t", owner: s.current.player })),
+    ],
     rewards,
     player: s.current.player,
     prev: s.current,
+    endGame,
   } as PhaseState;
 };
 
@@ -312,7 +348,7 @@ export const RouteAction = (s: GameState, params: ActionParams<"route">) => {
 export const RouteEmptyAction = (s: GameState) => {
   const player = getPlayer(s);
   for (const t of s.current.hand) {
-    player.generalStock[t] += 1;
+    player.generalStock[t.token] += 1;
   }
   // TODO: last(s.current.prev.actions).description = "Did nothing";
   return s.current.prev!;
@@ -328,9 +364,12 @@ export const OfficeAction = (s: GameState, params: ActionParams<"route-office">)
   const cityState = s.cities[params.city];
   const office = city.offices[cityState.tokens.length];
 
-  s.current.hand.splice(s.current.hand.indexOf(office.merch ? "m" : "t"), 1);
+  s.current.hand.splice(
+    s.current.hand.findIndex((tok) => tok.token === (office.merch ? "m" : "t")),
+    1
+  );
   for (const t of s.current.hand) {
-    player.generalStock[t] += 1;
+    player.generalStock[t.token] += 1;
   }
   s.current.hand = [];
   cityState.tokens.push({ owner: s.current.player, merch: office.merch });
@@ -350,7 +389,7 @@ export const UpgradeAction = (s: GameState, params: ActionParams<"route-upgrade"
   player[params.upgrade] += 1;
   player.personalSupply[params.upgrade === "book" ? "m" : "t"] += 1;
   for (const t of s.current.hand) {
-    player.generalStock[t] += 1;
+    player.generalStock[t.token] += 1;
   }
   s.current.hand = [];
 
@@ -361,11 +400,24 @@ export const UpgradeAction = (s: GameState, params: ActionParams<"route-upgrade"
 /**
  * Places a bonus marker on an empty trade route adjacent to at least one
  * non-completed city.
- *
- * This action can only be performed AFTER you've ended your turn, so no other
- * actions are undoable.
- *
- * It takes 1 argument:
- *  - A valid trade route
  */
-export const PlaceMarkerAction = () => {};
+export const MarkerPlaceAction = (s: GameState, params: ActionParams<"marker-place">) => {
+  s.routes[params.route].marker = getPlayer(s).unplacedMarkers.shift();
+  return s.current;
+};
+
+/**
+ * Activates a bonus marker
+ */
+export const MarkerUseAction = (s: GameState, params: ActionParams<"marker-use">) => {
+  if (params.kind === "Move 3") {
+    return {
+      phase: "Collection",
+      player: s.current.player,
+      prev: s.current,
+      hand: [],
+      actions: [],
+    } as PhaseState;
+  }
+  return s.current;
+};

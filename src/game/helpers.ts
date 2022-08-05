@@ -58,6 +58,42 @@ export const canUpgrade = (s: GameState, upgrade: Upgrade) => {
 };
 
 /**
+ * Returns true if a player can end their turn
+ */
+export const canEndTurn = (s: GameState) => {
+  if (s.current.hand.length > 0) {
+    return false;
+  }
+  if (s.current.phase === "Markers" && availableActionsCount(s)) {
+    return false;
+  }
+  if (s.current.phase === "Route") {
+    return false;
+  }
+  if (s.current.phase === "Displacement" && s.current.hand.length !== 0) {
+    return false;
+  }
+  return true;
+};
+
+/**
+ * Returns true if a player can move opponent tokens.
+ * Normally, after a bonus marker has been played
+ */
+export const canMoveOponnentMarkers = (s: GameState) => {
+  const last = s.current.prev?.actions[s.current.prev?.actions.length - 1];
+  if (
+    s.current.phase === "Collection" &&
+    last &&
+    last.name === "marker-use" &&
+    (last.params as ActionParams<"marker-use">)?.kind === "Move 3" // FU typescript inferrence
+  ) {
+    return true;
+  }
+  return false;
+};
+
+/**
  * Returns the number of actions a player has at disposal
  */
 export const availableActionsCount = (s: GameState) => {
@@ -68,12 +104,13 @@ export const availableActionsCount = (s: GameState) => {
   } else if (s.current.phase === "Displacement") {
     const { actions, hand } = s.current;
     const merchDisplaced = hand.length
-      ? hand[0] === "m"
+      ? hand[0].token === "m"
       : getPost(s, (actions[0] as ActionRecord<"displace-place">).params!.post)?.merch;
     return merchDisplaced ? 3 : 2;
   } else if (s.current.phase === "Collection") {
-    // Books allow you to move 2/3/4/5 tokens
-    return book + 1;
+    // If you can move opponent markers, you played a "move 3" token
+    // Otherwise, the books upgrade allow you to move 2/3/4/5 tokens
+    return canMoveOponnentMarkers(s) ? 3 : book + 1;
   } else if (s.current.phase === "Movement") {
     // The hand is emptied with actions
     return s.current.hand.length + s.current.actions.length;
@@ -163,6 +200,24 @@ export const cityOwner = (s: GameState, cityName: string) => {
   return owner;
 };
 
+/**
+ * Returns true if the passed city is full
+ */
+export const isCityFull = (s: GameState, cityName: string) => {
+  return s.cities[cityName].tokens.length === s.map.cities[cityName].offices.length;
+};
+
+/**
+ * Returns `true` if the passed route index is eligible for bonus marker placement
+ */
+export const canPlaceBonusMarker = (s: GameState, routeIndex: number) => {
+  const route = s.routes[routeIndex];
+  const { from, to } = s.map.routes[routeIndex];
+  return (
+    (!route.tokens || !route.tokens.some((t) => t)) && !route.marker && !(isCityFull(s, from) && isCityFull(s, to))
+  );
+};
+
 // VALIDATOR FUNCTIONS
 
 const noMoreTokens = (s: GameState) => {
@@ -171,7 +226,9 @@ const noMoreTokens = (s: GameState) => {
 };
 
 const noActionsRemaining = (s: GameState) =>
-  availableActionsCount(s) === s.current.actions.length ? "No actions remaining" : null;
+  availableActionsCount(s) === s.current.actions.filter((a) => a.name !== "marker-use").length
+    ? "No actions remaining"
+    : null;
 
 const insufficientReadyTokens = (s: GameState, amount: number, merch?: boolean) => {
   const { m, t } = getPlayer(s).personalSupply;
@@ -206,7 +263,7 @@ const insufficientPrivilegeForCity = (s: GameState, cityName: string) => {
 
 const noMerchantToken = (s: GameState, cityName: string) => {
   const requiresMerch = s.map.cities[cityName].offices[s.cities[cityName].tokens.length]?.merch;
-  if (requiresMerch && s.current.hand.every((t) => t === "t")) {
+  if (requiresMerch && s.current.hand.every((t) => t.token === "t")) {
     return "A merchant is required to claim that office";
   }
   return null;
@@ -260,7 +317,7 @@ export const validateAction = <T extends ActionName>(name: T, s: GameState, para
       gamePhaseIsNot(s, ["Actions", "Collection"]) ||
       noActionsRemaining(s) ||
       tradingPostEmpty(s, post) ||
-      tradingPostNotOwn(s, post)
+      (!canMoveOponnentMarkers(s) && tradingPostNotOwn(s, post))
     );
   } else if (name === "move-place") {
     const { post } = params as ActionParams<"move-place">;

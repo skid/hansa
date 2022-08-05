@@ -2,10 +2,12 @@
 
 body {
   font-family: monospace;
+
   .center {
     width: 550px;
     margin: auto;
   }
+
   .player-conf {
     display: flex;
     align-items: center;
@@ -14,6 +16,7 @@ body {
       width: 100px;
     }
   }
+
   .player-link {
     margin-bottom: 10px;
     div {

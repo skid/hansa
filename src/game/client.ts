@@ -1,6 +1,6 @@
 import produce from "immer";
 import { useCallback, useEffect, useState } from "react";
-import { Action, GameState, initGameState } from "./model";
+import { Action, GameState, PlayerState } from "./model";
 import { executeAction } from "./actions";
 import { getPlayer, validateAction } from "./helpers";
 import { supabase } from "../supabase";
@@ -9,12 +9,14 @@ export type GameClient = {
   playerId: string;
   state: GameState;
   action: Action;
+  reset: () => void;
 };
 
 /**
  * Creates a new game client.
  */
 export const useClient = (gameId: string, playerId: string): GameClient | null => {
+  const [originalState, setOriginalState] = useState<GameState>();
   const [immutableState, setState] = useState<GameState>();
 
   useEffect(() => {
@@ -27,7 +29,9 @@ export const useClient = (gameId: string, playerId: string): GameClient | null =
           if (error) {
             console.log(error);
           } else {
-            setState(JSON.parse(data[0].state));
+            const game = JSON.parse(data[0].state);
+            setState(game);
+            setOriginalState(game);
           }
         });
     }
@@ -103,6 +107,9 @@ export const useClient = (gameId: string, playerId: string): GameClient | null =
     playerId,
     state: immutableState,
     action,
+    reset: () => {
+      setState(originalState);
+    },
   };
 };
 
@@ -112,4 +119,5 @@ export const defaultClient: GameClient = Object.freeze({
   action: () => {
     throw new Error("Can't use default client, please instantiate a new one!");
   },
+  reset: () => {},
 });

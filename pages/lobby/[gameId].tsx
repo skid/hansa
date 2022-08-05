@@ -8,6 +8,9 @@ function HomePage() {
   const [state, setState] = useState<GameState>();
 
   useEffect(() => {
+    if (!router.query.gameId) {
+      return;
+    }
     supabase
       .from("games")
       .select("state")

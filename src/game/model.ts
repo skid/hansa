@@ -1,8 +1,9 @@
 import { v4 } from "uuid";
 export type Color = "red" | "blue" | "green" | "yellow" | "purple";
 export type Privilege = 0 | 1 | 2 | 3;
-export type BonusMarkerKind = "Upgrade" | "Swap" | "Place" | "Move 3" | "3 Actions" | "4 Actions";
 export type Upgrade = "privilege" | "book" | "actions" | "keys" | "bank";
+export type BonusMarkerKind = "Upgrade" | "Swap" | "Place" | "Move 3" | "3 Actions" | "4 Actions";
+
 /**
  * Current game phase dictates the allowed player actions and action behaviours
  * - `Actions` is the regular phase where player actions are expected
@@ -25,7 +26,9 @@ export type ActionName =
   | "route" // Complete a route (this is a half-action)
   | "route-empty" // Complete a route and do nothing
   | "route-office" // Complete a route and place an office in a city
-  | "route-upgrade"; // Complete a route and upgrade a stat
+  | "route-upgrade" // Complete a route and upgrade a stat
+  | "marker-place" // Place a new marker at the end of your turn
+  | "marker-use"; // Use a marker
 
 export type ActionParams<T extends ActionName> = T extends "place" | "displace"
   ? { post: [number, number]; merch?: boolean }
@@ -39,6 +42,10 @@ export type ActionParams<T extends ActionName> = T extends "place" | "displace"
   ? { city: string }
   : T extends "route-upgrade"
   ? { upgrade: Upgrade }
+  : T extends "marker-place"
+  ? { route: number }
+  : T extends "marker-use"
+  ? { kind: BonusMarkerKind }
   : never;
 
 export type Action = <T extends ActionName>(name: T, params?: ActionParams<T>) => void;
@@ -61,6 +68,7 @@ export type City = {
   offices: Office[];
   position: [number, number];
   upgrade?: Upgrade;
+  color?: "red" | "yellow"; // For upgrade cities / arnheim-stendal route
 };
 
 export type Route = {
@@ -105,7 +113,7 @@ export type PhaseState = {
   actions: ActionRecord<ActionName>[];
 
   // Tokens held in hand (not anywhere on the board)
-  hand: ("m" | "t")[];
+  hand: { token: "m" | "t"; owner: number }[];
 
   // Route reward options, valid only when in the "Route" phase
   rewards?: RouteReward[];
@@ -113,6 +121,10 @@ export type PhaseState = {
   // Stores the previous phase state that we can return to.
   // This is done for off-turn change of control such as when placing displaced tokens
   prev?: PhaseState;
+
+  // If true, a game end condition has been met.
+  // The game should end immediately after the current action is resolved
+  endGame?: boolean;
 };
 
 export type PlayerState = {
@@ -164,6 +176,11 @@ export type GameState = {
   routes: RouteState[];
 
   /**
+   * The bonus marker stack
+   */
+  markers: BonusMarkerKind[];
+
+  /**
    * Player index or `null` if the barrel is unoccupied
    */
   coellen: [number | null, number | null, number | null, number | null];
@@ -174,12 +191,7 @@ export type GameState = {
   map: GameMap;
 };
 
-import { DevMap } from "./maps";
-
-export const initMapState = (map: GameMap): Pick<GameState, "cities" | "routes"> => ({
-  cities: Object.fromEntries(Object.entries(map.cities).map(([name, _data]) => [name, { tokens: [], extras: [] }])),
-  routes: map.routes.map((r) => ({ tokens: Array.from(Array(r.posts)).map(() => null) })),
-});
+import { Standard3P } from "./maps";
 
 const shuffle = <T>(array: T[]) => {
   for (let i = array.length - 1; i > 0; i--) {
@@ -187,6 +199,17 @@ const shuffle = <T>(array: T[]) => {
     [array[i], array[j]] = [array[j], array[i]];
   }
   return array;
+};
+
+export const initMapState = (map: GameMap): Pick<GameState, "cities" | "routes"> => {
+  const markers: BonusMarkerKind[] = shuffle(["Swap", "Move 3", "Place"]);
+  return {
+    cities: Object.fromEntries(Object.entries(map.cities).map(([name, _data]) => [name, { tokens: [], extras: [] }])),
+    routes: map.routes.map((r) => ({
+      tokens: Array.from(Array(r.posts)).map(() => null),
+      marker: r.tavern ? markers.shift() : undefined,
+    })),
+  };
 };
 
 export const initGameState = (players: { [key in Color]?: string }): GameState => {
@@ -217,8 +240,23 @@ export const initGameState = (players: { [key in Color]?: string }): GameState =
         unplacedMarkers: [],
       }))
     ),
+    markers: [
+      "Place",
+      "Place",
+      "Place",
+      "Place",
+      "4 Actions",
+      "4 Actions",
+      "3 Actions",
+      "3 Actions",
+      "Upgrade",
+      "Upgrade",
+      "Upgrade",
+      "Move 3",
+      "Swap",
+    ],
     coellen: [null, null, null, null],
-    map: DevMap,
-    ...initMapState(DevMap),
+    map: Standard3P,
+    ...initMapState(Standard3P),
   };
 };
