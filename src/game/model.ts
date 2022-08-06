@@ -12,8 +12,9 @@ export type BonusMarkerKind = "Upgrade" | "Swap" | "Place" | "Move 3" | "3 Actio
  * - `Collection` requires that the current player "collects" their tokens to be moved
  * - `Movement` requires that the current player "places" their collected tokens
  * - `Route` requires that the current player picks a reward for completing a route
+ * - `Upgrade` requires that the current player picks an upgrade (after using the upgrade marker)
  */
-export type Phase = "Actions" | "Displacement" | "Markers" | "Collection" | "Movement" | "Route";
+export type Phase = "Actions" | "Displacement" | "Markers" | "Collection" | "Movement" | "Route" | "Upgrade";
 
 export type ActionName =
   | "income" // Move tokens from the general stock to the personal supply
@@ -52,7 +53,7 @@ export type Action = <T extends ActionName>(name: T, params?: ActionParams<T>) =
 
 export type ActionRecord<T extends ActionName> = { name: T; params?: ActionParams<T> };
 
-export type RouteReward =
+export type Reward =
   | { title: string; action: ActionRecord<"route-empty"> }
   | { title: string; action: ActionRecord<"route-office"> }
   | { title: string; action: ActionRecord<"route-upgrade"> };
@@ -116,7 +117,7 @@ export type PhaseState = {
   hand: { token: "m" | "t"; owner: number }[];
 
   // Route reward options, valid only when in the "Route" phase
-  rewards?: RouteReward[];
+  rewards?: Reward[];
 
   // Stores the previous phase state that we can return to.
   // This is done for off-turn change of control such as when placing displaced tokens

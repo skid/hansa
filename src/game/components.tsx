@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useRef, useState } from "react";
+import React, { MouseEventHandler, useContext, useEffect, useRef, useState } from "react";
 import { BonusMarkerKind, City, initGameState, Office, PlayerState } from "./model";
 import {
   availableActionsCount,
@@ -12,7 +12,6 @@ import {
   times,
 } from "./helpers";
 import { defaultClient, GameClient, useClient } from "./client";
-import { BonusMarker } from "./markers";
 
 // Nice yellow: #EEBC1D
 const PrivilegeColorMap = ["white", "#F2AC29", "#99649A", "gray"];
@@ -255,6 +254,8 @@ export const PlayerControls = () => {
           ? currentPlayer.unplacedMarkers[0]
             ? `Place a "${currentPlayer.unplacedMarkers[0]}" marker on an empty route`
             : `No markers to place. End turn?`
+          : phase === "Upgrade"
+          ? "Choose an upgrade"
           : "Invalid state"}
       </div>
 
@@ -275,12 +276,11 @@ export const PlayerControls = () => {
             {phase === "Actions" && acts > 0 && (
               <button onClick={() => action("income")}>Purchase {incomeValue(state)} tokens</button>
             )}
-            {phase === "Route" &&
-              state.current.rewards?.map((r, i) => (
-                <button key={i} onClick={() => action(r.action.name, r.action.params)}>
-                  {r.title}
-                </button>
-              ))}
+            {state.current.rewards?.map((r, i) => (
+              <button key={i} onClick={() => action(r.action.name, r.action.params)}>
+                {r.title}
+              </button>
+            ))}
           </div>
 
           <div className="buttons">
@@ -536,7 +536,7 @@ export const RouteComponent = ({
           />
         </g>
       )}
-      {marker && <BonusMarker kind={marker} x={cx + cx - ncx} y={cy + cy - ncy} />}
+      {marker && <SVGMarker kind={marker} x={cx + cx - ncx} y={cy + cy - ncy} />}
 
       {Array.from(Array(posts)).map((_, i) => {
         const x = x1 + dx * (0.5 + radpct * (i - posts / 2 + 0.5));
@@ -561,7 +561,9 @@ export const TradingPostComponent = ({
   const token = state.routes[address[0]].tokens[address[1]];
   const owner = token && state.players[token.owner];
 
-  const onClick = () => {
+  const onClick: MouseEventHandler<SVGGElement> = (e) => {
+    const placeMerchant = getPlayer(state).personalSupply.m > 0 && (e.shiftKey || merch);
+
     if (state.current.phase === "Displacement") {
       if (!owner) {
         action("displace-place", { post: address });
@@ -572,7 +574,7 @@ export const TradingPostComponent = ({
           action("move-place", { post: address });
         }
       } else {
-        action("place", { post: address, merch });
+        action("place", { post: address, merch: placeMerchant });
       }
     } else if (owner === getPlayer(state)) {
       action("move-collect", { post: address });
@@ -581,7 +583,7 @@ export const TradingPostComponent = ({
         action("move-collect", { post: address });
       } else {
         // TODO: show an alert to notify that control passes to another player
-        action("displace", { post: address, merch });
+        action("displace", { post: address, merch: placeMerchant });
       }
     }
   };
@@ -607,12 +609,36 @@ export const TradingPostComponent = ({
   );
 };
 
-export const SVGMarker = ({ kind }: { kind: BonusMarkerKind }) => {};
+export const SVGMarker = ({ kind, x, y }: { kind: BonusMarkerKind; x: number; y: number }) => {
+  const text =
+    kind === "3 Actions"
+      ? "+3"
+      : kind === "4 Actions"
+      ? "+4"
+      : kind === "Move 3"
+      ? "move"
+      : kind === "Place"
+      ? "offc"
+      : kind === "Swap"
+      ? "swap"
+      : kind === "Upgrade"
+      ? "upgr"
+      : null;
+  return (
+    <g>
+      <circle cx={x} cy={y} r={20} fill="#ffffcc" stroke="black" strokeWidth={2} />
+      <text fill="black" fontSize="14" fontFamily="Monospace" fontWeight="400" letterSpacing="0em">
+        <tspan textAnchor="middle" x={x} y={y + 4}>
+          {text}
+        </tspan>
+      </text>
+    </g>
+  );
+};
 
 export const InlineMarker = ({ kind }: { kind: BonusMarkerKind }) => {
   const { client } = useContext(ClientContext);
   const onClick = () => client.action("marker-use", { kind });
-
   const text =
     kind === "3 Actions"
       ? "+3"
@@ -692,6 +718,7 @@ export const PlayerQuickInfo = ({ player }: { player: PlayerState }) => {
           Priv: ○ {p > 1 ? "🟠" : "⬛"} {p > 2 ? "🟣" : "⬛"} {p > 3 ? "⚫" : "⬛"}
         </div>
         <div className="markers">
+          {player.usedMarkers.length > 0 && <div className="inline-marker used">{player.usedMarkers.length}</div>}
           {player.readyMarkers.map((kind, i) => (
             <InlineMarker key={i} kind={kind} />
           ))}

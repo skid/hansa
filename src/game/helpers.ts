@@ -100,7 +100,13 @@ export const availableActionsCount = (s: GameState) => {
   const { actions, book, unplacedMarkers } = getPlayer(s);
 
   if (s.current.phase === "Actions") {
-    return actions <= 1 ? 2 : actions <= 3 ? 3 : actions <= 5 ? 4 : 5;
+    const regular = actions <= 1 ? 2 : actions <= 3 ? 3 : actions <= 5 ? 4 : 5;
+    const playedMarkers = s.current.actions.filter(({ name }) => name === "marker-use") as ActionRecord<"marker-use">[];
+    const additional = playedMarkers.reduce(
+      (acc, mk) => acc + (mk.params?.kind === "3 Actions" ? 3 : mk.params?.kind === "4 Actions" ? 4 : 0),
+      0
+    );
+    return regular + additional;
   } else if (s.current.phase === "Displacement") {
     const { actions, hand } = s.current;
     const merchDisplaced = hand.length

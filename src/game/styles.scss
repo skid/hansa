@@ -65,14 +65,13 @@ div#ui {
     }
 
     div.buttons {
+      display: flex;
+      flex-wrap: wrap;
       margin-top: 10px;
 
       button {
-        margin-left: 5px;
-      }
-
-      button:first-child {
-        margin-left: 0;
+        flex: 1 1 auto;
+        margin: 0 5px 5px 0;
       }
     }
   }
@@ -173,69 +172,19 @@ svg#map {
   flex: 1;
   box-sizing: border-box;
   background-color: lighten($color: lightsalmon, $amount: 20);
-}
-
-.city-group .title {
-  paint-order: stroke;
-  white-space: pre;
-  text-align: center;
-}
-
-.city-group .upgrade {
-  cursor: pointer;
-  text-transform: capitalize;
-}
-
-.complete-route {
-  cursor: pointer;
-}
-
-#players {
-  position: fixed;
-  width: 300px;
-  top: 10px;
-  right: 10px;
-  background-color: white;
-  border-radius: 5px;
-  box-shadow: rgba(0, 0, 0, 0.05) 0px 6px 24px 0px, rgba(0, 0, 0, 0.08) 0px 0px 0px 1px;
-  padding: 5px;
-}
-
-.player-ui {
-  margin: 0 0 5px;
-  font-family: monospace;
-
-  .marker {
-    display: inline-block;
-    margin-left: 5px;
-    &.used {
-      text-decoration: line-through;
-    }
-    &.unplaced {
-      text-decoration: underline;
-    }
+  .city-group .title {
+    paint-order: stroke;
+    white-space: pre;
+    text-align: center;
   }
 
-  .box {
-    display: flex;
-
-    .tokens {
-      width: 60%;
-
-      div.rack {
-        box-sizing: border-box;
-        padding: 5px;
-
-        &:first-child {
-          border-bottom: solid 1px #ccc;
-        }
-      }
-    }
+  .city-group .upgrade {
+    cursor: pointer;
+    text-transform: capitalize;
   }
 
-  h3 {
-    margin: 0;
-    border-bottom: solid 1px #ccc;
+  .complete-route {
+    cursor: pointer;
   }
 }
 

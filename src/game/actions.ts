@@ -1,5 +1,5 @@
 import { canEndTurn, canUpgrade, cityOwner, getPlayer, getPost, incomeValue } from "./helpers";
-import { ActionName, ActionParams, PhaseState, GameState, TokenState, RouteReward } from "./model";
+import { ActionName, ActionParams, PhaseState, GameState, TokenState, Reward } from "./model";
 
 /**
  * Executes an action by name and passed params.
@@ -75,11 +75,8 @@ export const DoneAction = (s: GameState) => {
 };
 
 /**
- * The income action moves 3/5/7/All merchants / tradesmen
- * from the general reserve to the personal supply.
- *
- * The action has no parameters.
- * If possible, merchants are hired first.
+ * Moves 3/5/7/All merchants / tradesmen from the general reserve to the personal supply.
+ * Moves merchants first automatically (simpler implementation)
  */
 export const IncomeAction = (s: GameState) => {
   const { generalStock, personalSupply } = getPlayer(s);
@@ -101,10 +98,6 @@ export const IncomeAction = (s: GameState) => {
 
 /**
  * Places a tradesman or a merchant on a trading post.
- *
- * It takes 2 parameters:
- *  - An empty trading post
- *  - A token type (merchant or tradesman)
  */
 export const PlaceAction = (s: GameState, params: ActionParams<"place">) => {
   const { personalSupply } = getPlayer(s);
@@ -118,17 +111,8 @@ export const PlaceAction = (s: GameState, params: ActionParams<"place">) => {
 };
 
 /**
- * Displaces an opponent's tradesman or a merchant.
- *
- * It takes 2 parameters:
- *  - An occupied trading post
- *  - A token type (merchant or tradesman)
- *
- * The action can't be performed if not enough tokens are in
- * your personal supply.
- *
- * Immediately after the action, control is passed to the other player
- * and the action (and previous ones) can't be undone.
+ * Displaces an opponent's tradesman or a merchant and passes control to the other player.
+ * This action can't be "undone" - it effectively ends your turn.
  */
 export const DisplaceAction = (s: GameState, params: ActionParams<"displace">) => {
   const displacedToken = s.routes[params.post[0]].tokens[params.post[1]]!;
@@ -167,7 +151,7 @@ export const DisplaceAction = (s: GameState, params: ActionParams<"displace">) =
 /**
  * Places your "next" displaced tradesmen or merchant.
  * The next one is determined as follows:
- *  - The original displaced token
+ *  - The original displaced token in your hand
  *  - A tradesman from the general stock
  *  - A merchant from the general stock
  *  - A tradesman from the personal supply
@@ -175,9 +159,6 @@ export const DisplaceAction = (s: GameState, params: ActionParams<"displace">) =
  *
  * CAVEAT: In the game rules, if there are no more tokens to place even in the personal supply
  * the player is allowed to move any token on the board. We don't allow this for now.
- *
- * It takes one parameter
- *  - Valid empty trading posts
  */
 export const DisplacePlaceAction = (s: GameState, params: ActionParams<"displace-place">) => {
   const token = { owner: s.current.player } as TokenState;
@@ -227,11 +208,8 @@ export const MoveCollectAction = (s: GameState, params: ActionParams<"move-colle
 };
 
 /**
- * Moves your merchants or tradesmen
+ * Places the next token in your hand on an empty trading post.
  *
- * It takes 2 arguments
- *  - An array of trading posts occupied by your tokens
- *  - An equally big array of empty trading posts
  */
 export const MovePlaceAction = (s: GameState, params: ActionParams<"move-place">) => {
   const tok = s.current.hand.shift()!;
@@ -261,7 +239,7 @@ export const MovePlaceAction = (s: GameState, params: ActionParams<"move-place">
  * Completes a route, allowing a player to choose rewards
  */
 export const RouteAction = (s: GameState, params: ActionParams<"route">) => {
-  const rewards: RouteReward[] = [{ title: "Do nothing", action: { name: "route-empty", params: {} } }];
+  const rewards: Reward[] = [{ title: "Do nothing", action: { name: "route-empty", params: {} } }];
 
   const privilege = getPlayer(s).privilege;
   const route = s.map.routes[params.route];
@@ -356,7 +334,6 @@ export const RouteEmptyAction = (s: GameState) => {
 
 /**
  * Creates an office in a city
- * It takes 1 arguments - a valid city
  */
 export const OfficeAction = (s: GameState, params: ActionParams<"route-office">) => {
   const player = getPlayer(s);
@@ -381,7 +358,6 @@ export const OfficeAction = (s: GameState, params: ActionParams<"route-office">)
 
 /**
  * Performs an upgrade
- * It takes 1 arguments - a valid city
  */
 export const UpgradeAction = (s: GameState, params: ActionParams<"route-upgrade">) => {
   const player = getPlayer(s);
@@ -410,6 +386,13 @@ export const MarkerPlaceAction = (s: GameState, params: ActionParams<"marker-pla
  * Activates a bonus marker
  */
 export const MarkerUseAction = (s: GameState, params: ActionParams<"marker-use">) => {
+  const p = getPlayer(s);
+  const [marker] = p.readyMarkers.splice(
+    p.readyMarkers.findIndex((m) => m === params.kind),
+    1
+  );
+  p.usedMarkers.push(marker);
+
   if (params.kind === "Move 3") {
     return {
       phase: "Collection",
@@ -418,6 +401,37 @@ export const MarkerUseAction = (s: GameState, params: ActionParams<"marker-use">
       hand: [],
       actions: [],
     } as PhaseState;
+  } else if (params.kind === "Upgrade") {
+    const rewards: Reward[] = [];
+    if (p.bank < 4) {
+      rewards.push({ title: "Upgrade bank", action: { name: "route-upgrade", params: { upgrade: "bank" } } });
+    }
+    if (p.actions < 6) {
+      rewards.push({ title: "Upgrade actions", action: { name: "route-upgrade", params: { upgrade: "actions" } } });
+    }
+    if (p.keys < 5) {
+      rewards.push({ title: "Upgrade keys", action: { name: "route-upgrade", params: { upgrade: "keys" } } });
+    }
+    if (p.book < 4) {
+      rewards.push({ title: "Upgrade book", action: { name: "route-upgrade", params: { upgrade: "book" } } });
+    }
+    if (p.privilege < 4) {
+      rewards.push({ title: "Upgrade privilege", action: { name: "route-upgrade", params: { upgrade: "privilege" } } });
+    }
+    return {
+      phase: "Upgrade",
+      player: s.current.player,
+      prev: s.current,
+      hand: [],
+      actions: [],
+      rewards,
+    } as PhaseState;
+  } else if (params.kind === "3 Actions") {
+  } else if (params.kind === "4 Actions") {
+  } else if (params.kind === "Swap") {
+    // Choose office to swap (extra action)
+  } else if (params.kind === "Place") {
+    // Choose where to place (extra action)
   }
   return s.current;
 };
