@@ -10,7 +10,7 @@ export const times = <T>(times: number, callback: (i: number) => T) => {
 /**
  * Returns the current player
  */
-export const getPlayer = (s: GameState) => s.players[s.current.player];
+export const getPlayer = (s: GameState) => s.players[s.context.player];
 
 /**
  * Returns a trading post
@@ -61,16 +61,18 @@ export const canUpgrade = (s: GameState, upgrade: Upgrade) => {
  * Returns true if a player can end their turn
  */
 export const canEndTurn = (s: GameState) => {
-  if (s.current.hand.length > 0) {
+  const { hand, phase } = s.context;
+
+  if (hand.length > 0) {
     return false;
   }
-  if (s.current.phase === "Markers" && availableActionsCount(s)) {
+  if (phase === "Markers" && availableActionsCount(s)) {
     return false;
   }
-  if (s.current.phase === "Route") {
+  if (phase === "Route" || phase === "Swap") {
     return false;
   }
-  if (s.current.phase === "Displacement" && s.current.hand.length !== 0) {
+  if (phase === "Displacement" && hand.length !== 0) {
     return false;
   }
   return true;
@@ -81,9 +83,9 @@ export const canEndTurn = (s: GameState) => {
  * Normally, after a bonus marker has been played
  */
 export const canMoveOponnentMarkers = (s: GameState) => {
-  const last = s.current.prev?.actions[s.current.prev?.actions.length - 1];
+  const last = s.context.prev?.actions[s.context.prev?.actions.length - 1];
   if (
-    s.current.phase === "Collection" &&
+    s.context.phase === "Collection" &&
     last &&
     last.name === "marker-use" &&
     (last.params as ActionParams<"marker-use">)?.kind === "Move 3" // FU typescript inferrence
@@ -99,28 +101,28 @@ export const canMoveOponnentMarkers = (s: GameState) => {
 export const availableActionsCount = (s: GameState) => {
   const { actions, book, unplacedMarkers } = getPlayer(s);
 
-  if (s.current.phase === "Actions") {
+  if (s.context.phase === "Actions") {
     const regular = actions <= 1 ? 2 : actions <= 3 ? 3 : actions <= 5 ? 4 : 5;
-    const playedMarkers = s.current.actions.filter(({ name }) => name === "marker-use") as ActionRecord<"marker-use">[];
+    const playedMarkers = s.context.actions.filter(({ name }) => name === "marker-use") as ActionRecord<"marker-use">[];
     const additional = playedMarkers.reduce(
       (acc, mk) => acc + (mk.params?.kind === "3 Actions" ? 3 : mk.params?.kind === "4 Actions" ? 4 : 0),
       0
     );
     return regular + additional;
-  } else if (s.current.phase === "Displacement") {
-    const { actions, hand } = s.current;
+  } else if (s.context.phase === "Displacement") {
+    const { actions, hand } = s.context;
     const merchDisplaced = hand.length
       ? hand[0].token === "m"
       : getPost(s, (actions[0] as ActionRecord<"displace-place">).params!.post)?.merch;
     return merchDisplaced ? 3 : 2;
-  } else if (s.current.phase === "Collection") {
+  } else if (s.context.phase === "Collection") {
     // If you can move opponent markers, you played a "move 3" token
     // Otherwise, the books upgrade allow you to move 2/3/4/5 tokens
     return canMoveOponnentMarkers(s) ? 3 : book + 1;
-  } else if (s.current.phase === "Movement") {
+  } else if (s.context.phase === "Movement") {
     // The hand is emptied with actions
-    return s.current.hand.length + s.current.actions.length;
-  } else if (s.current.phase === "Markers") {
+    return s.context.hand.length + s.context.actions.length;
+  } else if (s.context.phase === "Markers") {
     return unplacedMarkers.length;
   }
 
@@ -156,7 +158,7 @@ export const vacantPostsCount = (s: GameState, routeIndices: number[]) => {
  * Returns the indices of all routes where a displaced token might be placed
  */
 export const validDisplacedTokenRoutes = (s: GameState) => {
-  const act = s.current.prev!.actions[s.current.prev!.actions.length - 1] as ActionRecord<"displace">;
+  const act = s.context.prev!.actions[s.context.prev!.actions.length - 1] as ActionRecord<"displace">;
   const location = act.params!.post;
 
   let traversed = [location[0]];
@@ -207,6 +209,36 @@ export const cityOwner = (s: GameState, cityName: string) => {
 };
 
 /**
+ * Returns true if an office can be swapped by the current player
+ */
+export const canSwapOffice = (s: GameState, cityName: string, office: number) => {
+  return (
+    s.context.phase === "Swap" && // Swap phase only
+    s.cities[cityName].tokens.length > office + 1 && // Must not be the rightmost office
+    s.cities[cityName].tokens[office].owner === s.context.player // Must be yours too
+  );
+};
+
+/**
+ * Returns the cities where you are allowed to place an extra office this turn
+ */
+export const validExtraOfficeLocations = (s: GameState) => {
+  const cities: string[] = [];
+  for (const a of s.context.actions) {
+    if (a.name === "route" && a.contextActions?.length && a.contextActions[0].name === "route-office") {
+      const route = s.map.routes[(a as ActionRecord<"route">).params!.route];
+      if (s.cities[route.from].tokens.length > 0) {
+        cities.push(route.from);
+      }
+      if (s.cities[route.to].tokens.length > 0) {
+        cities.push(route.to);
+      }
+    }
+  }
+  return cities;
+};
+
+/**
  * Returns true if the passed city is full
  */
 export const isCityFull = (s: GameState, cityName: string) => {
@@ -232,7 +264,7 @@ const noMoreTokens = (s: GameState) => {
 };
 
 const noActionsRemaining = (s: GameState) =>
-  availableActionsCount(s) === s.current.actions.filter((a) => a.name !== "marker-use").length
+  availableActionsCount(s) === s.context.actions.filter((a) => a.name !== "marker-use").length
     ? "No actions remaining"
     : null;
 
@@ -244,7 +276,7 @@ const insufficientReadyTokens = (s: GameState, amount: number, merch?: boolean) 
 };
 
 const gamePhaseIsNot = (s: GameState, p: Phase[]) =>
-  p.includes(s.current.phase) ? null : "You can't perform that action now";
+  p.includes(s.context.phase) ? null : "You can't perform that action now";
 
 const generalStockEmpty = (s: GameState) =>
   getPlayer(s).generalStock.m + getPlayer(s).generalStock.t < 1 ? "General Stock is Empty" : null;
@@ -254,32 +286,55 @@ const tradingPostTaken = (s: GameState, post: [number, number]) => (getPost(s, p
 const tradingPostEmpty = (s: GameState, post: [number, number]) => (!getPost(s, post) ? "Trading Post is Empty" : null);
 
 const routeIsNotComplete = (s: GameState, routeIndex: number) =>
-  s.routes[routeIndex].tokens.some((t) => t?.owner !== s.current.player) ? "The route is not complete" : null;
+  s.routes[routeIndex].tokens.some((t) => t?.owner !== s.context.player) ? "The route is not complete" : null;
 
 const cityIsFull = (s: GameState, cityName: string) => {
   return s.cities[cityName].tokens.length === s.map.cities[cityName].offices.length ? "City is full" : null;
 };
 
+const hasNoUpgradesLeft = (s: GameState) => {
+  const { book, bank, actions, privilege, keys } = getPlayer(s);
+  return book === 4 && bank === 4 && actions === 6 && privilege === 4 && keys === 5
+    ? "You have nothing to upgrade"
+    : null;
+};
+
+const hasNoSwappableOffice = (s: GameState) => {
+  return Object.values(s.cities).some((cs) => {
+    const office = cs.tokens.findIndex((t) => t.owner === s.context.player);
+    if (office === -1 || office === cs.tokens.length - 1) {
+      return false;
+    }
+    return true;
+  })
+    ? null
+    : "No office eligible for swapping";
+};
+
+const cantEstablishExtraOffice = (s: GameState) => {
+  validExtraOfficeLocations(s).length === 0 ? "You haven't established any offices this turn" : null;
+};
+
 const insufficientPrivilegeForCity = (s: GameState, cityName: string) => {
   const { privilege } = getPlayer(s);
-  return s.map.cities[cityName].offices[s.cities[cityName].tokens.length]?.color > privilege
+  return s.map.cities[cityName].offices[s.cities[cityName].tokens.length]?.color >= privilege
     ? "Insufficient privilege to claim this city"
     : null;
 };
 
 const noMerchantToken = (s: GameState, cityName: string) => {
   const requiresMerch = s.map.cities[cityName].offices[s.cities[cityName].tokens.length]?.merch;
-  if (requiresMerch && s.current.hand.every((t) => t.token === "t")) {
+  if (requiresMerch && s.context.hand.every((t) => t.token === "t")) {
     return "A merchant is required to claim that office";
   }
   return null;
 };
 
 const tradingPostOwn = (s: GameState, post: [number, number]) =>
-  getPost(s, post)!.owner === s.current.player ? "Trading Post is Yours" : null;
+  getPost(s, post)!.owner === s.context.player ? "Trading Post is Yours" : null;
 
 const tradingPostNotOwn = (s: GameState, post: [number, number]) =>
-  getPost(s, post)!.owner !== s.current.player ? "Trading Post is not Yours" : null;
+  getPost(s, post)!.owner !== s.context.player ? "Trading Post is not Yours" : null;
 
 const invalidDisplaceRoute = (s: GameState, post: [number, number]) =>
   !validDisplacedTokenRoutes(s).includes(post[0]) ? "You can't move a displaced token there" : null;
@@ -329,7 +384,7 @@ export const validateAction = <T extends ActionName>(name: T, s: GameState, para
     const { post } = params as ActionParams<"move-place">;
     return (
       gamePhaseIsNot(s, ["Collection", "Movement"]) ||
-      (s.current.phase === "Movement" ? noActionsRemaining(s) : null) ||
+      (s.context.phase === "Movement" ? noActionsRemaining(s) : null) ||
       tradingPostTaken(s, post)
     );
   } else if (name === "route") {
@@ -343,6 +398,19 @@ export const validateAction = <T extends ActionName>(name: T, s: GameState, para
       insufficientPrivilegeForCity(s, city) ||
       noMerchantToken(s, city)
     );
+  } else if (name === "marker-use") {
+    const { kind } = params as ActionParams<"marker-use">;
+    return (
+      gamePhaseIsNot(s, ["Actions"]) ||
+      (kind === "Upgrade" && hasNoUpgradesLeft(s)) ||
+      (kind === "Swap" && hasNoSwappableOffice(s)) ||
+      (kind === "Office" && cantEstablishExtraOffice(s))
+    );
+  } else if (name === "marker-swap") {
+    const { city, office } = params as ActionParams<"marker-swap">;
+    return gamePhaseIsNot(s, ["Swap"]) || (canSwapOffice(s, city, office) ? null : "Can't swap that office");
+  } else if (name === "marker-office") {
+    gamePhaseIsNot(s, ["Office"]);
   } else if (name === "done") {
     // TODO: validate
   }

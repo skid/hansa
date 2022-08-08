@@ -28,21 +28,17 @@ Here's what we have:
 
 - A functional game with all basic actions implemented
 - Flow control / turn management
-- A game map with 3 cities
+- A 3 player game map
 
-What we need:
+What we need to do:
 
-- Imeplement marker mechanics
-  - Render markers (in the routes and he player UI)
-  - Add actions and validators for each marker
-  - Implement the "place marker" phase
-- Finish the entire map and implement pan/zoom
-  - Just add the cities and routes at the correc coordinates
-  - Pan and zoom on the SVG element is useful too
-- Implement an end-game condition and decide who won
+- Score tracking
+- Arnheim-Stendal point rewards
+- Rest of the game ending triggers (we only have the marker condition)
+- The coellen barrels action
+- 4-player map
+- Testing / debugging
+- Not chat
 
 Here's a good image of the map that can help you:
 ![Hansa](https://user-images.githubusercontent.com/240319/178597097-9775a589-22a8-411c-ad8e-3003734e750f.jpeg)
-
-
-

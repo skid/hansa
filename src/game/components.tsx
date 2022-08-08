@@ -5,6 +5,7 @@ import {
   canEndTurn,
   canMoveOponnentMarkers,
   canPlaceBonusMarker,
+  canSwapOffice,
   cityOwner,
   getPlayer,
   incomeValue,
@@ -14,13 +15,11 @@ import {
 import { defaultClient, GameClient, useClient } from "./client";
 
 // Nice yellow: #EEBC1D
-const PrivilegeColorMap = ["white", "#F2AC29", "#99649A", "gray"];
+const PrivilegeColorMap = ["white", "#F2AC29", "rgb(255, 145, 207)", "gray"];
 const CityColorMap = (color: City["color"]) => (color === "red" ? "#faa" : color === "yellow" ? "#ffa" : "white");
 const FontSize = 24;
-const CityHeight = 64;
-const RectWidth = 36;
-const CircleWidth = 40;
-const OfficeWidth = 48;
+const CityHeight = 60;
+const OfficeWidth = 40;
 const Margin = 8;
 const PostRadius = 14;
 
@@ -228,8 +227,8 @@ export const PlayerControls = () => {
   const me = state.players.find((p) => p.id === playerId)!;
   const currentPlayer = getPlayer(state);
 
-  const acts = availableActionsCount(state) - state.current.actions.filter((a) => a.name !== "marker-use").length;
-  const { phase } = state.current;
+  const acts = availableActionsCount(state) - state.context.actions.filter((a) => a.name !== "marker-use").length;
+  const { phase } = state.context;
 
   return (
     <div className={`player-controls`}>
@@ -256,14 +255,18 @@ export const PlayerControls = () => {
             : `No markers to place. End turn?`
           : phase === "Upgrade"
           ? "Choose an upgrade"
+          : phase === "Swap"
+          ? "Choose one of your offices to swap it with the one on its right"
+          : phase === "Office"
+          ? "Choose a city to put an extra office"
           : "Invalid state"}
       </div>
 
       {me === currentPlayer && (
         <>
-          {state.current.hand.length > 0 && (
+          {state.context.hand.length > 0 && (
             <div className={`hand ${me.color}`}>
-              {state.current.hand.map((t, i) => (
+              {state.context.hand.map((t, i) => (
                 <div
                   key={i}
                   className={`token ${t.token === "m" ? "merchant" : "tradesman"} ${state.players[t.owner].color}`}
@@ -276,7 +279,7 @@ export const PlayerControls = () => {
             {phase === "Actions" && acts > 0 && (
               <button onClick={() => action("income")}>Purchase {incomeValue(state)} tokens</button>
             )}
-            {state.current.rewards?.map((r, i) => (
+            {state.context.rewards?.map((r, i) => (
               <button key={i} onClick={() => action(r.action.name, r.action.params)}>
                 {r.title}
               </button>
@@ -301,14 +304,14 @@ export const PlayerControls = () => {
   );
 };
 
-export const OfficeComponent = ({ office, order, city }: { office: Office; order: number; city: City }) => {
-  const width = office.merch ? CircleWidth : RectWidth;
-  const left = Margin + order * OfficeWidth + (OfficeWidth - width) / 2;
-  const top = (CityHeight - width) / 2;
+export const OfficeComponent = ({ office, order, city }: { office: Office | null; order: number; city: City }) => {
+  const left = Margin + order * (OfficeWidth + Margin);
+  const top = (CityHeight - OfficeWidth) / 2;
 
   const { state, action } = useContext(ClientContext).client;
-  const index = city.offices.indexOf(office);
-  const token = state.cities[city.name].tokens[index];
+
+  const index = office !== null ? city.offices.indexOf(office) : order;
+  const token = office !== null ? state.cities[city.name].tokens[index] : state.cities[city.name].extras[index];
 
   const claim = () => {
     if (index === state.cities[city.name].tokens.length) {
@@ -316,37 +319,44 @@ export const OfficeComponent = ({ office, order, city }: { office: Office; order
     }
   };
 
+  const onClick = () => {
+    if (office !== null && canSwapOffice(state, city.name, index)) {
+      action("marker-swap", { city: city.name, office: index });
+    }
+  };
+
   return (
-    <g>
-      {office.merch ? (
-        <circle
-          cx={left + width / 2}
-          cy={top + width / 2}
-          r={width / 2}
-          fill={PrivilegeColorMap[office.color]}
-          stroke="black"
-          strokeWidth="2"
-          onClick={claim}
-        />
-      ) : (
-        <rect
-          x={left}
-          y={top}
-          width={width}
-          height={width}
-          rx="1"
-          fill={PrivilegeColorMap[office.color]}
-          stroke="black"
-          strokeWidth="2"
-          onClick={claim}
-        />
-      )}
+    <g onClick={onClick}>
+      {office &&
+        (office.merch ? (
+          <circle
+            cx={left + OfficeWidth / 2}
+            cy={top + OfficeWidth / 2}
+            r={OfficeWidth / 2}
+            fill={PrivilegeColorMap[office.color]}
+            stroke="black"
+            strokeWidth="2"
+            onClick={claim}
+          />
+        ) : (
+          <rect
+            x={left}
+            y={top}
+            width={OfficeWidth}
+            height={OfficeWidth}
+            rx="1"
+            fill={PrivilegeColorMap[office.color]}
+            stroke="black"
+            strokeWidth="2"
+            onClick={claim}
+          />
+        ))}
       {token &&
         (token.merch ? (
           <circle
-            cx={left + PostRadius * 1.45}
-            cy={top + PostRadius * 1.45}
-            r={PostRadius * 1.25}
+            cx={left + OfficeWidth / 2}
+            cy={top + OfficeWidth / 2}
+            r={OfficeWidth / 2 - 1}
             fill={state.players[token.owner].color}
             stroke="white"
             strokeWidth="2"
@@ -354,10 +364,10 @@ export const OfficeComponent = ({ office, order, city }: { office: Office; order
           />
         ) : (
           <rect
-            x={left + PostRadius / 4}
-            y={top + PostRadius / 4}
-            width={PostRadius * 2}
-            height={PostRadius * 2}
+            x={left + 2}
+            y={top + 2}
+            width={OfficeWidth - 4}
+            height={OfficeWidth - 4}
             rx="1"
             fill={state.players[token.owner].color}
             stroke="white"
@@ -365,9 +375,9 @@ export const OfficeComponent = ({ office, order, city }: { office: Office; order
             onClick={claim}
           />
         ))}
-      {office.point && (
+      {office && office.point && (
         <text className="title" fill="black" fontSize="20" fontFamily="Monospace" fontWeight="800" letterSpacing="0em">
-          <tspan textAnchor="middle" x={left + width / 2} y={top + width / 2 + 6}>
+          <tspan textAnchor="middle" x={left + OfficeWidth / 2} y={top + OfficeWidth / 2 + 6}>
             1
           </tspan>
         </text>
@@ -380,7 +390,8 @@ export const CityComponent = ({ cityName }: { cityName: string }) => {
   const { client } = useContext(ClientContext);
   const { state } = client;
   const city = state.map.cities[cityName];
-  const cityWidth = city.offices.length * OfficeWidth + 2 * Margin;
+  const extras = state.cities[cityName].extras;
+  const cityWidth = (city.offices.length + extras.length) * (OfficeWidth + Margin) + Margin;
   const x = city.position[0] - cityWidth / 2;
   const y = city.position[1] - (CityHeight + FontSize / 2) / 2;
 
@@ -399,8 +410,11 @@ export const CityComponent = ({ cityName }: { cityName: string }) => {
           stroke={owner ? owner.color : "black"}
           strokeWidth="3"
         />
+        {extras.map((token, i) => (
+          <OfficeComponent key={i} office={null} order={i} city={city} />
+        ))}
         {city.offices.map((office, i) => (
-          <OfficeComponent key={i} office={office} order={i} city={city} />
+          <OfficeComponent key={i} office={office} order={extras.length + i} city={city} />
         ))}
       </g>
       <text
@@ -413,7 +427,7 @@ export const CityComponent = ({ cityName }: { cityName: string }) => {
         fontWeight="800"
         letterSpacing="0em"
       >
-        <tspan textAnchor="middle" x={cityWidth / 2} y={CityHeight + FontSize / 2 - 5}>
+        <tspan textAnchor="middle" x={cityWidth / 2} y={CityHeight + FontSize / 2}>
           {city.name}
         </tspan>
       </text>
@@ -426,7 +440,7 @@ export const CityComponent = ({ cityName }: { cityName: string }) => {
           fontWeight="400"
           letterSpacing="0em"
         >
-          <tspan textAnchor="middle" x={cityWidth / 2} y={CityHeight + FontSize}>
+          <tspan textAnchor="middle" x={cityWidth / 2} y={CityHeight + FontSize + 5}>
             {city.upgrade}
           </tspan>
         </text>
@@ -454,7 +468,8 @@ export const RouteComponent = ({
   // We find the intersection points with the city rects and "cut" the route short.
   const { from: fromCityName, to: toCityName } = state.map.routes[index];
   const fromCity = state.map.cities[fromCityName];
-  const fromCityWidth = fromCity.offices.length * OfficeWidth + 2 * Margin;
+  const fromExtras = state.cities[fromCityName].extras;
+  const fromCityWidth = (fromCity.offices.length + fromExtras.length) * OfficeWidth + 2 * Margin;
   const fromCityRect = {
     x: fromCity.position[0] - fromCityWidth / 2,
     y: fromCity.position[1] - CityHeight / 2,
@@ -462,7 +477,8 @@ export const RouteComponent = ({
     h: CityHeight,
   };
   const toCity = state.map.cities[toCityName];
-  const toCityWidth = toCity.offices.length * OfficeWidth + 2 * Margin;
+  const toExtras = state.cities[toCityName].extras;
+  const toCityWidth = (toCity.offices.length + toExtras.length) * OfficeWidth + 2 * Margin;
   const toCityRect = {
     x: toCity.position[0] - toCityWidth / 2,
     y: toCity.position[1] - CityHeight / 2,
@@ -502,16 +518,16 @@ export const RouteComponent = ({
   const ncx = cx + ndx * nradpct * (ny2 > ny1 ? 1 : -1);
   const ncy = cy + ndy * nradpct * (ny2 > ny1 ? 1 : -1);
 
-  const isRouteFull = state.routes[index].tokens.every((t) => t?.owner === state.current.player);
+  const isRouteFull = state.routes[index].tokens.every((t) => t?.owner === state.context.player);
   const marker = state.routes[index].marker;
   const placeMarker =
-    state.current.phase === "Markers" && canPlaceBonusMarker(state, index) && getPlayer(state).unplacedMarkers[0];
+    state.context.phase === "Markers" && canPlaceBonusMarker(state, index) && getPlayer(state).unplacedMarkers[0];
 
   return (
     <g>
       <path d={`M${from[0]} ${from[1]} L${to[0]} ${to[1]}`} stroke="gray" strokeWidth="10" />
 
-      {isRouteFull && (
+      {isRouteFull && client.playerId === getPlayer(state).id && (
         <g className="complete-route" onClick={() => action("route", { route: index })}>
           <circle cx={ncx} cy={ncy} r={PostRadius} fill={getPlayer(state).color} stroke="black" strokeWidth={2} />
           <path
@@ -564,13 +580,13 @@ export const TradingPostComponent = ({
   const onClick: MouseEventHandler<SVGGElement> = (e) => {
     const placeMerchant = getPlayer(state).personalSupply.m > 0 && (e.shiftKey || merch);
 
-    if (state.current.phase === "Displacement") {
+    if (state.context.phase === "Displacement") {
       if (!owner) {
         action("displace-place", { post: address });
       }
     } else if (!owner) {
-      if (state.current.phase === "Collection" || state.current.phase === "Movement") {
-        if (state.current.hand.length > 0) {
+      if (state.context.phase === "Collection" || state.context.phase === "Movement") {
+        if (state.context.hand.length > 0) {
           action("move-place", { post: address });
         }
       } else {
@@ -579,7 +595,7 @@ export const TradingPostComponent = ({
     } else if (owner === getPlayer(state)) {
       action("move-collect", { post: address });
     } else {
-      if (state.current.phase === "Collection" && canMoveOponnentMarkers(state)) {
+      if (state.context.phase === "Collection" && canMoveOponnentMarkers(state)) {
         action("move-collect", { post: address });
       } else {
         // TODO: show an alert to notify that control passes to another player
@@ -617,7 +633,7 @@ export const SVGMarker = ({ kind, x, y }: { kind: BonusMarkerKind; x: number; y:
       ? "+4"
       : kind === "Move 3"
       ? "move"
-      : kind === "Place"
+      : kind === "Office"
       ? "offc"
       : kind === "Swap"
       ? "swap"
@@ -646,7 +662,7 @@ export const InlineMarker = ({ kind }: { kind: BonusMarkerKind }) => {
       ? "+4"
       : kind === "Move 3"
       ? "move"
-      : kind === "Place"
+      : kind === "Office"
       ? "offc"
       : kind === "Swap"
       ? "swap"

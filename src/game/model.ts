@@ -2,19 +2,21 @@ import { v4 } from "uuid";
 export type Color = "red" | "blue" | "green" | "yellow" | "purple";
 export type Privilege = 0 | 1 | 2 | 3;
 export type Upgrade = "privilege" | "book" | "actions" | "keys" | "bank";
-export type BonusMarkerKind = "Upgrade" | "Swap" | "Place" | "Move 3" | "3 Actions" | "4 Actions";
+export type BonusMarkerKind = "Upgrade" | "Swap" | "Office" | "Move 3" | "3 Actions" | "4 Actions";
 
 /**
  * Current game phase dictates the allowed player actions and action behaviours
- * - `Actions` is the regular phase where player actions are expected
- * - `Displacement` requires the current player to place displaced markers
- * - `Markers` requires that the current player places a bonus marker on a route
- * - `Collection` requires that the current player "collects" their tokens to be moved
- * - `Movement` requires that the current player "places" their collected tokens
- * - `Route` requires that the current player picks a reward for completing a route
- * - `Upgrade` requires that the current player picks an upgrade (after using the upgrade marker)
  */
-export type Phase = "Actions" | "Displacement" | "Markers" | "Collection" | "Movement" | "Route" | "Upgrade";
+export type Phase =
+  | "Actions" // regular phase where player actions are expected
+  | "Displacement" // current player must place displaced markers
+  | "Markers" // current player places a bonus marker on a route
+  | "Collection" // current player collects tokens from trading posts to be moved
+  | "Movement" // current player places collected tokens
+  | "Route" // current player picks a reward for completing a route
+  | "Upgrade" // current player picks an upgrade (after using the upgrade marker)
+  | "Swap" // current player selects an office to swap (after using the swap marker)
+  | "Office"; // current player picks a city to put an extra office in (after using the office marker)
 
 export type ActionName =
   | "income" // Move tokens from the general stock to the personal supply
@@ -29,7 +31,9 @@ export type ActionName =
   | "route-office" // Complete a route and place an office in a city
   | "route-upgrade" // Complete a route and upgrade a stat
   | "marker-place" // Place a new marker at the end of your turn
-  | "marker-use"; // Use a marker
+  | "marker-use" // Use a marker
+  | "marker-swap" // Use a "swap" marker
+  | "marker-office"; // Use an "extra office" marker;
 
 export type ActionParams<T extends ActionName> = T extends "place" | "displace"
   ? { post: [number, number]; merch?: boolean }
@@ -47,16 +51,30 @@ export type ActionParams<T extends ActionName> = T extends "place" | "displace"
   ? { route: number }
   : T extends "marker-use"
   ? { kind: BonusMarkerKind }
+  : T extends "marker-swap"
+  ? { city: string; office: number }
+  : T extends "marker-office"
+  ? { city: string }
   : never;
 
 export type Action = <T extends ActionName>(name: T, params?: ActionParams<T>) => void;
 
-export type ActionRecord<T extends ActionName> = { name: T; params?: ActionParams<T> };
+export type ActionRecord<T extends ActionName> = {
+  name: T;
+  params?: ActionParams<T>;
+  /**
+   * Actions done within the new context created by this action.
+   * We use this, for example, to check if the "route" action was followed by
+   * a "route-office" action in the "route" phase it created.
+   */
+  contextActions?: ActionRecord<ActionName>[];
+};
 
 export type Reward =
   | { title: string; action: ActionRecord<"route-empty"> }
   | { title: string; action: ActionRecord<"route-office"> }
-  | { title: string; action: ActionRecord<"route-upgrade"> };
+  | { title: string; action: ActionRecord<"route-upgrade"> }
+  | { title: string; action: ActionRecord<"marker-office"> };
 
 export type Office = {
   color: Privilege;
@@ -100,28 +118,30 @@ export type CityState = {
 };
 
 /**
- * The current player state keeps temporary information
- * about the player currently taking actions
+ * The phase context stores information about the current phase and
+ * the actions taken in it. The phase context behaves similarly to a stack.
+ * For example, if a player action needs additional choices to be displayed
+ * a new context will be created and its `prev` attribute will point to the
+ * original context to be restored once the player is done.
  */
-export type PhaseState = {
-  // Current phase
+export type PhaseContext = {
+  // Current phase name
   phase: Phase;
 
   // Current player index
   player: number;
 
-  // Actions taken so far in this particular phase
+  // Actions taken so far in this phase
   actions: ActionRecord<ActionName>[];
 
   // Tokens held in hand (not anywhere on the board)
   hand: { token: "m" | "t"; owner: number }[];
 
-  // Route reward options, valid only when in the "Route" phase
+  // Reward choices, e.g. when completing a route
   rewards?: Reward[];
 
-  // Stores the previous phase state that we can return to.
-  // This is done for off-turn change of control such as when placing displaced tokens
-  prev?: PhaseState;
+  // Points to the previous context that we need to return to
+  prev?: PhaseContext;
 
   // If true, a game end condition has been met.
   // The game should end immediately after the current action is resolved
@@ -157,9 +177,10 @@ export type GameState = {
   turn: number;
 
   /**
-   * Current player index
+   * The current "phase context".
+   * Phases determine what kind of actions are possible.
    */
-  current: PhaseState;
+  context: PhaseContext;
 
   /**
    * Player order and states
@@ -203,7 +224,7 @@ const shuffle = <T>(array: T[]) => {
 };
 
 export const initMapState = (map: GameMap): Pick<GameState, "cities" | "routes"> => {
-  const markers: BonusMarkerKind[] = shuffle(["Swap", "Move 3", "Place"]);
+  const markers: BonusMarkerKind[] = shuffle(["Swap", "Move 3", "Office"]);
   return {
     cities: Object.fromEntries(Object.entries(map.cities).map(([name, _data]) => [name, { tokens: [], extras: [] }])),
     routes: map.routes.map((r) => ({
@@ -217,7 +238,7 @@ export const initGameState = (players: { [key in Color]?: string }): GameState =
   return {
     id: v4(),
     turn: 0,
-    current: {
+    context: {
       phase: "Actions",
       player: 0,
       actions: [],
@@ -237,15 +258,16 @@ export const initGameState = (players: { [key in Color]?: string }): GameState =
         book: 1,
         points: 0,
         readyMarkers: [],
+        // readyMarkers: ["Upgrade", "Swap", "3 Actions", "Office", "4 Actions", "Move 3"],
         usedMarkers: [],
         unplacedMarkers: [],
       }))
     ),
     markers: [
-      "Place",
-      "Place",
-      "Place",
-      "Place",
+      "Office",
+      "Office",
+      "Office",
+      "Office",
       "4 Actions",
       "4 Actions",
       "3 Actions",

@@ -14,11 +14,6 @@ function HomePage() {
     }
 
     const game = initGameState(players);
-
-    game.players
-      .find((p) => p.color === "red")
-      ?.readyMarkers.push("Upgrade", "Swap", "3 Actions", "Place", "4 Actions");
-
     const { data, error } = await supabase.from("games").upsert([
       {
         id: game.id,

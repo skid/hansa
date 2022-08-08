@@ -55,6 +55,8 @@ export const useClient = (gameId: string, playerId: string): GameClient | null =
     (window as any).hansa = immutableState;
   }
 
+  // The sync method saves the game state.
+  // Sync also commits actions to the game log and undo is no longer possible afterwards.
   const sync = useCallback((state: GameState) => {
     supabase
       .from("games")
@@ -64,6 +66,8 @@ export const useClient = (gameId: string, playerId: string): GameClient | null =
         if (error) {
           console.log(error);
         }
+        // Commit to log
+        setOriginalState(state);
       });
   }, []);
 
@@ -81,16 +85,24 @@ export const useClient = (gameId: string, playerId: string): GameClient | null =
         }
 
         const newState = produce(immutableState, (draft: GameState) => {
-          // Apply the action changes and get the new current state
-          const current = executeAction(name, draft, params);
+          // Apply the action changes and get the new "current" state
+          // Note that `executeAction` mutates the draft state
+          const context = executeAction(name, draft, params);
 
-          // Record the action after it's been performed
-          draft.current.actions.push({ name, params });
-          draft.current = current;
+          // The `draft.context` should not have been mutated
+          draft.context.actions.push({ name, params });
+
+          if (draft.context.prev === context) {
+            // We are popping out of current context, store the actions
+            context.actions[context.actions.length - 1].contextActions = draft.context.actions;
+          }
+
+          // Replace the `current` state with the new one
+          draft.context = context;
         });
 
-        if (newState?.current.player !== immutableState?.current.player) {
-          sync(newState!);
+        if (newState?.context.player !== immutableState?.context.player) {
+          sync(JSON.parse(JSON.stringify(newState)));
         }
 
         return newState;
