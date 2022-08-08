@@ -63,6 +63,8 @@ function HomePage() {
         <br />
         {count > 2 && <button onClick={createGame}>Create a {count}-player game</button>}
       </div>
+      <h2>Report bugs here</h2>
+      <a href="https://github.com/skid/hansa">https://github.com/skid/hansa</a>
     </div>
   );
 }
