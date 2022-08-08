@@ -4,7 +4,7 @@
 
 - Just clone and `yarn` and `yarn dev`
 - Play with your console open
-- Obviously stuff are missing (like most of the map and the marker mechanic)
+- Obviously stuff are missing
 
 ## Frontend
 
