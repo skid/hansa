@@ -1,18 +1,21 @@
 import React, { MouseEventHandler, useContext, useEffect, useRef, useState } from "react";
 import { BonusMarkerKind, City, initGameState, Office, PlayerState } from "./model";
 import {
+  areCitiesLinked,
   availableActionsCount,
   canEndTurn,
   canMoveOponnentMarkers,
   canPlaceBonusMarker,
   canSwapOffice,
   cityOwner,
+  fullCityCount,
   getPlayer,
   incomeValue,
   isCityFull,
-  times,
+  largestNetwork,
+  totalPoints,
 } from "./helpers";
-import { defaultClient, GameClient, useClient } from "./client";
+import { defaultController, GameController, useController } from "./controller";
 
 // Nice yellow: #EEBC1D
 const PrivilegeColorMap = ["white", "#F2AC29", "rgb(255, 145, 207)", "gray"];
@@ -28,8 +31,8 @@ type UIState = {
   setMerch: (merch: boolean) => void;
 };
 
-const ClientContext = React.createContext<{ client: GameClient; ui: UIState }>({
-  client: defaultClient,
+const ControllerContext = React.createContext<{ controller: GameController; ui: UIState }>({
+  controller: defaultController,
   ui: { merch: false, setMerch: () => {} },
 });
 
@@ -105,9 +108,9 @@ export const Map = () => {
   const { groupRef, svgRef, scale, x, y, panStart, pan, panEnd, zoom } = usePanZoom();
   const { map } = testState;
   return (
-    <ClientContext.Provider
+    <ControllerContext.Provider
       value={{
-        client: { state: testState, action: () => {}, reset: () => {}, playerId: "red" },
+        controller: { state: testState, action: () => {}, reset: () => {}, playerId: "red" },
         ui: { merch: false, setMerch: () => {} },
       }}
     >
@@ -132,6 +135,7 @@ export const Map = () => {
           }}
         >
           <g ref={groupRef} id="game" transform={`scale(${scale}, ${scale}) translate(${x},${y})`}>
+            <CoellenBarrels x={map.coellen[0]} y={map.coellen[1]} />
             {map.routes.map((r, i) => (
               <RouteComponent
                 key={i}
@@ -147,7 +151,7 @@ export const Map = () => {
           </g>
         </svg>
       </div>
-    </ClientContext.Provider>
+    </ControllerContext.Provider>
   );
 };
 
@@ -156,8 +160,8 @@ export const Map = () => {
  * Takes a GameState as an input parameter
  */
 export const App = ({ gameId, playerId }: { gameId: string; playerId: string }) => {
-  const client = useClient(gameId, playerId);
-  const { groupRef, svgRef, scale, x, y, panStart, pan, panEnd, zoom } = usePanZoom(!!client);
+  const ctrl = useController(gameId, playerId);
+  const { groupRef, svgRef, scale, x, y, panStart, pan, panEnd, zoom } = usePanZoom(!!ctrl);
   const [merch, setMerch] = useState(false);
 
   useEffect(() => {
@@ -166,20 +170,19 @@ export const App = ({ gameId, playerId }: { gameId: string; playerId: string }) 
     }
   });
 
-  if (!client) {
+  if (!ctrl) {
     return <div>Loading ... </div>;
   }
 
-  const { map, players, cities } = client.state;
-  const player = players.find((p) => p.id === client.playerId)!;
+  const { map, players } = ctrl.state;
+  const player = players.find((p) => p.id === ctrl.playerId)!;
 
   return (
-    <ClientContext.Provider value={{ client, ui: { merch, setMerch } }}>
+    <ControllerContext.Provider value={{ controller: ctrl, ui: { merch, setMerch } }}>
       <div id="container">
         <div id="ui">
           <div id="gameinfo">
-            Markers: {client.state.markers.length} | Full Cities:{" "}
-            {Object.keys(cities).filter((c) => isCityFull(client.state, c)).length}/10
+            Markers: {ctrl.state.markers.length} | Full Cities: {fullCityCount(ctrl.state)}/10
           </div>
           <PlayerControls />
         </div>
@@ -202,6 +205,7 @@ export const App = ({ gameId, playerId }: { gameId: string; playerId: string }) 
           }}
         >
           <g ref={groupRef} id="game" transform={`scale(${scale}, ${scale}) translate(${x},${y})`}>
+            <CoellenBarrels x={map.coellen[0]} y={map.coellen[1]} />
             {map.routes.map((r, i) => (
               <RouteComponent
                 key={i}
@@ -217,13 +221,13 @@ export const App = ({ gameId, playerId }: { gameId: string; playerId: string }) 
           </g>
         </svg>
       </div>
-    </ClientContext.Provider>
+    </ControllerContext.Provider>
   );
 };
 
 export const PlayerControls = () => {
-  const { client } = useContext(ClientContext);
-  const { state, action, reset, playerId } = client;
+  const { controller } = useContext(ControllerContext);
+  const { state, action, reset, playerId } = controller;
   const me = state.players.find((p) => p.id === playerId)!;
   const currentPlayer = getPlayer(state);
 
@@ -308,7 +312,7 @@ export const OfficeComponent = ({ office, order, city }: { office: Office | null
   const left = Margin + order * (OfficeWidth + Margin);
   const top = (CityHeight - OfficeWidth) / 2;
 
-  const { state, action } = useContext(ClientContext).client;
+  const { state, action } = useContext(ControllerContext).controller;
 
   const index = office !== null ? city.offices.indexOf(office) : order;
   const token = office !== null ? state.cities[city.name].tokens[index] : state.cities[city.name].extras[index];
@@ -387,8 +391,8 @@ export const OfficeComponent = ({ office, order, city }: { office: Office | null
 };
 
 export const CityComponent = ({ cityName }: { cityName: string }) => {
-  const { client } = useContext(ClientContext);
-  const { state } = client;
+  const { controller } = useContext(ControllerContext);
+  const { state } = controller;
   const city = state.map.cities[cityName];
   const extras = state.cities[cityName].extras;
   const cityWidth = (city.offices.length + extras.length) * (OfficeWidth + Margin) + Margin;
@@ -401,8 +405,6 @@ export const CityComponent = ({ cityName }: { cityName: string }) => {
     <g className="city-group" style={{ transform: `translate(${x}px,${y}px)` }}>
       <g>
         <rect
-          x="0"
-          y="0"
           width={cityWidth}
           height={CityHeight}
           rx="6"
@@ -460,8 +462,8 @@ export const RouteComponent = ({
   to: [number, number];
   posts: number;
 }) => {
-  const { client } = useContext(ClientContext);
-  const { state, action } = client;
+  const { controller } = useContext(ControllerContext);
+  const { state, action } = controller;
 
   // Cities can be different sizes, so we want to take into account only
   // the part of the route line which is not covered by a city.
@@ -527,7 +529,7 @@ export const RouteComponent = ({
     <g>
       <path d={`M${from[0]} ${from[1]} L${to[0]} ${to[1]}`} stroke="gray" strokeWidth="10" />
 
-      {isRouteFull && client.playerId === getPlayer(state).id && (
+      {isRouteFull && controller.playerId === getPlayer(state).id && (
         <g className="complete-route" onClick={() => action("route", { route: index })}>
           <circle cx={ncx} cy={ncy} r={PostRadius} fill={getPlayer(state).color} stroke="black" strokeWidth={2} />
           <path
@@ -572,8 +574,8 @@ export const TradingPostComponent = ({
 }) => {
   const {
     ui: { merch },
-    client: { state, action },
-  } = useContext(ClientContext);
+    controller: { state, action },
+  } = useContext(ControllerContext);
   const token = state.routes[address[0]].tokens[address[1]];
   const owner = token && state.players[token.owner];
 
@@ -625,25 +627,47 @@ export const TradingPostComponent = ({
   );
 };
 
+const getMarkerTextAndTitle = (kind: BonusMarkerKind) => {
+  let text = "";
+  let title = "";
+
+  if (kind === "3 Actions") {
+    text = "+3";
+    title = "Gain 3 actions";
+  } else if (kind === "4 Actions") {
+    text = "+4";
+    title = "Gain 4 actions";
+  } else if (kind === "Move 3") {
+    text = "move";
+    title = "Move any 3 tokens occupying a trading post";
+  } else if (kind === "Office") {
+    text = "offc";
+    title = "Extra office in a city with at least 1 office";
+  } else if (kind === "Swap") {
+    text = "swap";
+    title = "Swap one of your offices with the next one";
+  } else if (kind === "Upgrade") {
+    text = "upgr";
+    title = "Free upgrade";
+  }
+  return { text, title };
+};
+
 export const SVGMarker = ({ kind, x, y }: { kind: BonusMarkerKind; x: number; y: number }) => {
-  const text =
-    kind === "3 Actions"
-      ? "+3"
-      : kind === "4 Actions"
-      ? "+4"
-      : kind === "Move 3"
-      ? "move"
-      : kind === "Office"
-      ? "offc"
-      : kind === "Swap"
-      ? "swap"
-      : kind === "Upgrade"
-      ? "upgr"
-      : null;
+  const { text, title } = getMarkerTextAndTitle(kind);
   return (
     <g>
-      <circle cx={x} cy={y} r={20} fill="#ffffcc" stroke="black" strokeWidth={2} />
-      <text fill="black" fontSize="14" fontFamily="Monospace" fontWeight="400" letterSpacing="0em">
+      <circle cx={x} cy={y} r={20} fill="#ffffcc" stroke="black" strokeWidth={2}>
+        <title>{title}</title>
+      </circle>
+      <text
+        style={{ pointerEvents: "none" }}
+        fill="black"
+        fontSize="14"
+        fontFamily="Monospace"
+        fontWeight="400"
+        letterSpacing="0em"
+      >
         <tspan textAnchor="middle" x={x} y={y + 4}>
           {text}
         </tspan>
@@ -653,33 +677,22 @@ export const SVGMarker = ({ kind, x, y }: { kind: BonusMarkerKind; x: number; y:
 };
 
 export const InlineMarker = ({ kind }: { kind: BonusMarkerKind }) => {
-  const { client } = useContext(ClientContext);
-  const onClick = () => client.action("marker-use", { kind });
-  const text =
-    kind === "3 Actions"
-      ? "+3"
-      : kind === "4 Actions"
-      ? "+4"
-      : kind === "Move 3"
-      ? "move"
-      : kind === "Office"
-      ? "offc"
-      : kind === "Swap"
-      ? "swap"
-      : kind === "Upgrade"
-      ? "upgr"
-      : null;
+  const { controller } = useContext(ControllerContext);
+  const onClick = () => controller.action("marker-use", { kind });
+  const { text, title } = getMarkerTextAndTitle(kind);
+
   return (
-    <div onClick={onClick} className="inline-marker">
+    <div onClick={onClick} className="inline-marker" title={title}>
       {text}
     </div>
   );
 };
 
 export const PlayerQuickInfo = ({ player }: { player: PlayerState }) => {
-  const { ui, client } = useContext(ClientContext);
+  const { ui, controller } = useContext(ControllerContext);
 
-  const me = client.playerId === player.id;
+  const state = controller.state;
+  const me = controller.playerId === player.id;
 
   const a = player.actions;
   const k = player.keys;
@@ -690,40 +703,50 @@ export const PlayerQuickInfo = ({ player }: { player: PlayerState }) => {
     <div className={`player-info ${player.color}`}>
       <h2 style={{ color: player.color }}>
         {player.name}: {player.points}
-        <span className="score">(27)</span>
+        <span className="score">
+          (
+          {totalPoints(
+            state,
+            state.players.findIndex((p) => p === player)
+          )}
+          )
+        </span>
       </h2>
-      <div className="rack">
-        {player.generalStock.t > 0 && (
-          <>
-            {player.generalStock.t}x <div className="token tradesman"></div>
-          </>
-        )}
-        &nbsp;
-        {player.generalStock.m > 0 && (
-          <>
-            {player.generalStock.m}x <div className="token merchant"></div>
-          </>
-        )}
-        {" | "}
-        {player.personalSupply.t > 0 && (
-          <>
-            {player.personalSupply.t}x
-            <div
-              onClick={() => me && ui.setMerch(false)}
-              className={`personal token tradesman${!ui.merch && me ? " next" : ""}`}
-            ></div>
-          </>
-        )}
-        &nbsp;
-        {player.personalSupply.m > 0 && (
-          <>
-            {player.personalSupply.m}x
-            <div
-              onClick={() => me && ui.setMerch(true)}
-              className={`personal token merchant${ui.merch && me ? " next" : ""}`}
-            ></div>
-          </>
-        )}
+      <div className="rack flex">
+        <div className="left">
+          {player.generalStock.t > 0 && (
+            <>
+              {player.generalStock.t}x <div className="token tradesman"></div>
+            </>
+          )}
+          {player.generalStock.m > 0 && (
+            <>
+              &nbsp;
+              {player.generalStock.m}x <div className="token merchant"></div>
+            </>
+          )}
+        </div>
+        <div className="right">
+          {player.personalSupply.t > 0 && (
+            <>
+              {player.personalSupply.t}x
+              <div
+                onClick={() => me && ui.setMerch(false)}
+                className={`personal token tradesman${!ui.merch && me ? " next" : ""}`}
+              ></div>
+            </>
+          )}
+          {player.personalSupply.m > 0 && (
+            <>
+              &nbsp;
+              {player.personalSupply.m}x
+              <div
+                onClick={() => me && ui.setMerch(true)}
+                className={`personal token merchant${ui.merch && me ? " next" : ""}`}
+              ></div>
+            </>
+          )}
+        </div>
       </div>
       <div className={`player-quickinfo ${player.color}`}>
         <div className="upgrades">
@@ -741,6 +764,63 @@ export const PlayerQuickInfo = ({ player }: { player: PlayerState }) => {
         </div>
       </div>
     </div>
+  );
+};
+
+/**
+ * Displays the 7/8/9/11 point barrels next to Coellen
+ */
+const CoellenBarrels = ({ x, y }: { x: number; y: number }) => {
+  const { state } = useContext(ControllerContext).controller;
+
+  return (
+    <g style={{ transform: `translate(${x}px, ${y}px)` }}>
+      <rect width="160" height="50" rx="6" fill="#ffa" stroke="black" strokeWidth="3" />
+      <circle cx="25" cy="25" r="15" fill={PrivilegeColorMap[0]} stroke="black" strokeWidth="2" />
+      <circle cx="60" cy="25" r="15" fill={PrivilegeColorMap[1]} stroke="black" strokeWidth="2" />
+      <circle cx="95" cy="25" r="15" fill={PrivilegeColorMap[2]} stroke="black" strokeWidth="2" />
+      <circle cx="130" cy="25" r="15" fill={PrivilegeColorMap[3]} stroke="black" strokeWidth="2" />
+
+      <text fill="black" fontSize="20" fontFamily="Monospace" fontWeight="800" letterSpacing="0em">
+        <tspan textAnchor="middle" x={25} y={32}>
+          7
+        </tspan>
+      </text>
+
+      <text fill="black" fontSize="20" fontFamily="Monospace" fontWeight="800" letterSpacing="0em">
+        <tspan textAnchor="middle" x={60} y={32}>
+          8
+        </tspan>
+      </text>
+
+      <text fill="black" fontSize="20" fontFamily="Monospace" fontWeight="800" letterSpacing="0em">
+        <tspan textAnchor="middle" x={95} y={32}>
+          9
+        </tspan>
+      </text>
+
+      <text fill="white" fontSize="20" fontFamily="Monospace" fontWeight="800" letterSpacing="0em">
+        <tspan textAnchor="middle" x={130} y={32}>
+          11
+        </tspan>
+      </text>
+
+      {state.coellen
+        .map((c, i) =>
+          c == null ? null : (
+            <circle
+              key={i}
+              cx={25 + i * 35}
+              cy="25"
+              r="13"
+              fill={state.players[c].color}
+              stroke="white"
+              strokeWidth="2"
+            />
+          )
+        )
+        .filter((e) => e)}
+    </g>
   );
 };
 

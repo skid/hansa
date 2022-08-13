@@ -148,6 +148,22 @@ div#ui {
     }
   }
 
+  div.flex {
+    display: flex;
+
+    > div {
+      flex: 1 0 50%;
+      display: flex;
+      align-items: center;
+    }
+    .left {
+      justify-content: start;
+    }
+    .right {
+      justify-content: end;
+    }
+  }
+
   .inline-marker {
     font-size: 11px;
     display: inline-block;

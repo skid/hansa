@@ -1,11 +1,11 @@
 import produce from "immer";
 import { useCallback, useEffect, useState } from "react";
-import { Action, GameState, PlayerState } from "./model";
+import { Action, GameState } from "./model";
 import { executeAction } from "./actions";
 import { getPlayer, validateAction } from "./helpers";
 import { supabase } from "../supabase";
 
-export type GameClient = {
+export type GameController = {
   playerId: string;
   state: GameState;
   action: Action;
@@ -15,7 +15,7 @@ export type GameClient = {
 /**
  * Creates a new game client.
  */
-export const useClient = (gameId: string, playerId: string): GameClient | null => {
+export const useController = (gameId: string, playerId: string): GameController | null => {
   const [originalState, setOriginalState] = useState<GameState>();
   const [immutableState, setState] = useState<GameState>();
 
@@ -43,6 +43,7 @@ export const useClient = (gameId: string, playerId: string): GameClient | null =
         .from(`games:id=eq.${gameId}`)
         .on("UPDATE", (update) => {
           setState(update.new.state);
+          setOriginalState(update.new.state);
         })
         .subscribe();
       return () => {
@@ -125,11 +126,11 @@ export const useClient = (gameId: string, playerId: string): GameClient | null =
   };
 };
 
-export const defaultClient: GameClient = Object.freeze({
+export const defaultController: GameController = Object.freeze({
   playerId: "",
   state: {} as any,
   action: () => {
-    throw new Error("Can't use default client, please instantiate a new one!");
+    throw new Error("Can't use default controller, please instantiate a new one!");
   },
   reset: () => {},
 });

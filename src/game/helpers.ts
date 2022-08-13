@@ -1,13 +1,6 @@
 import { ActionName, ActionParams, ActionRecord, GameState, Phase, Route, RouteState, Upgrade } from "./model";
 
 /**
- * Performs the calback a number of times and returns an array
- */
-export const times = <T>(times: number, callback: (i: number) => T) => {
-  return Array.from(Array(times)).map((_, i) => callback(i));
-};
-
-/**
  * Returns the current player
  */
 export const getPlayer = (s: GameState) => s.players[s.context.player];
@@ -190,6 +183,94 @@ export const findRoutes = (
 };
 
 /**
+ * Returns the largest office network for a player
+ */
+export const largestNetwork = (s: GameState, p: number) => {
+  const officeCount: { [key: string]: number } = {};
+  for (const city in s.cities) {
+    const count =
+      s.cities[city].tokens.filter((t) => t?.owner === p).length +
+      s.cities[city].extras.filter((t) => t?.owner === p).length;
+    if (count) {
+      officeCount[city] = count;
+    }
+  }
+
+  const visited = new Set<string>([]);
+  const visit = (city: string): number => {
+    if (visited.has(city) || !(city in officeCount)) {
+      return 0;
+    }
+    visited.add(city);
+    return officeCount[city] + s.map.cities[city].neighbors.map(visit).reduce((a, b) => a + b);
+  };
+
+  return Math.max(0, ...Object.keys(officeCount).map((city) => visit(city)));
+};
+
+/**
+ * Returns true if a player has an office in each city along at least
+ * one route (including the "from" and "to" cities).
+ */
+export const areCitiesLinked = (s: GameState, from: string, to: string, p: number) => {
+  const presence: { [key: string]: boolean } = {};
+  for (const city in s.cities) {
+    const count =
+      s.cities[city].tokens.filter((t) => t?.owner === p).length +
+      s.cities[city].extras.filter((t) => t?.owner === p).length;
+    if (count) {
+      presence[city] = true;
+    }
+  }
+  if (!(from in presence && to in presence)) {
+    return false;
+  }
+  const visited = new Set<string>([]);
+  const visit = (city: string): boolean => {
+    if (visited.has(city) || !presence[city]) {
+      return false;
+    }
+    if (city === to) {
+      return true;
+    }
+    visited.add(city);
+    for (const neighbor of s.map.cities[city].neighbors) {
+      if (visit(neighbor)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  return visit(from);
+};
+
+/**
+ * Returns the total points for a player
+ */
+export const totalPoints = (s: GameState, index: number) => {
+  const p = s.players[index];
+  const m = p.usedMarkers.length + p.readyMarkers.length;
+  return (
+    // Regular points
+    p.points +
+    // Points from markers
+    (m > 9 ? 21 : m > 7 ? 15 : m > 5 ? 10 : m > 3 ? 6 : m > 1 ? 3 : m > 0 ? 1 : 0) +
+    // Points from full ugprades
+    (p.book === 4 ? 4 : 0) +
+    (p.bank === 4 ? 4 : 0) +
+    (p.privilege === 4 ? 4 : 0) +
+    (p.actions === 6 ? 4 : 0) +
+    // Points from largest network
+    largestNetwork(s, index) * (p.keys > 4 ? 4 : p.keys > 3 ? 3 : p.keys > 1 ? 2 : 1) +
+    // Points from coellen barrels
+    s.coellen.map((t, i) => (t === index ? [7, 8, 9, 11][i] : 0)).reduce((a, b) => a + b) +
+    // Points from controlled cities
+    (Object.keys(s.cities).map((c) => (cityOwner(s, c) === index ? 2 : 0)) as number[]).reduce((a, b) => a + b)
+  );
+};
+
+/**
  * Returns the city owner.
  * If nobody owns it, returns -1;
  */
@@ -243,6 +324,13 @@ export const validExtraOfficeLocations = (s: GameState) => {
  */
 export const isCityFull = (s: GameState, cityName: string) => {
   return s.cities[cityName].tokens.length === s.map.cities[cityName].offices.length;
+};
+
+/**
+ * Returns the number of full cities
+ */
+export const fullCityCount = (s: GameState) => {
+  return Object.keys(s.cities).filter((c) => isCityFull(s, c)).length;
 };
 
 /**

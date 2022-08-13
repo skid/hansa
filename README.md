@@ -22,6 +22,10 @@
 - Their moves overwrite the game state, so they can fuck up (or hack) the game for everyone. This is a dev server, not a final app.
 - If supabase supports pub/sub, changes to the game state are pushed to all other users
 
+## Known Bugs
+
+- If a player ends the game by completing a route between two cities, they can not use the "place extra office" marker **during** the route action.
+
 ## Contribute / Roadmap
 
 Here's what we have:
@@ -34,8 +38,7 @@ What we need to do:
 
 - Score tracking
 - Arnheim-Stendal point rewards
-- Rest of the game ending triggers (we only have the marker condition)
-- The coellen barrels action
+- Rest of the game ending triggers (marker/cities are done)
 - 4-player map
 - Testing / debugging
 - Not chat

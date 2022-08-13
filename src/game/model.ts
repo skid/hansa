@@ -30,6 +30,7 @@ export type ActionName =
   | "route-empty" // Complete a route and do nothing
   | "route-office" // Complete a route and place an office in a city
   | "route-upgrade" // Complete a route and upgrade a stat
+  | "route-barrel" // Score special coellen prestige points
   | "marker-place" // Place a new marker at the end of your turn
   | "marker-use" // Use a marker
   | "marker-swap" // Use a "swap" marker
@@ -47,6 +48,8 @@ export type ActionParams<T extends ActionName> = T extends "place" | "displace"
   ? { city: string }
   : T extends "route-upgrade"
   ? { upgrade: Upgrade }
+  : T extends "route-barrel"
+  ? { barrel: number }
   : T extends "marker-place"
   ? { route: number }
   : T extends "marker-use"
@@ -74,7 +77,8 @@ export type Reward =
   | { title: string; action: ActionRecord<"route-empty"> }
   | { title: string; action: ActionRecord<"route-office"> }
   | { title: string; action: ActionRecord<"route-upgrade"> }
-  | { title: string; action: ActionRecord<"marker-office"> };
+  | { title: string; action: ActionRecord<"marker-office"> }
+  | { title: string; action: ActionRecord<"route-barrel"> };
 
 export type Office = {
   color: Privilege;
@@ -88,6 +92,7 @@ export type City = {
   position: [number, number];
   upgrade?: Upgrade;
   color?: "red" | "yellow"; // For upgrade cities / arnheim-stendal route
+  neighbors: string[]; // Neighboring cities (redundant, but useful for calculations)
 };
 
 export type Route = {
@@ -100,6 +105,7 @@ export type Route = {
 export type GameMap = {
   cities: { [key: string]: City };
   routes: Route[];
+  coellen: [number, number];
 };
 
 export type TokenState = {
@@ -163,6 +169,7 @@ export type PlayerState = {
   readyMarkers: BonusMarkerKind[];
   usedMarkers: BonusMarkerKind[];
   unplacedMarkers: BonusMarkerKind[];
+  linkEastWest?: true;
 };
 
 export type GameState = {
@@ -274,9 +281,9 @@ export const initGameState = (players: { [key in Color]?: string }): GameState =
       "3 Actions",
       "Upgrade",
       "Upgrade",
-      "Upgrade",
-      "Move 3",
       "Swap",
+      "Swap",
+      "Move 3",
     ],
     coellen: [null, null, null, null],
     map: Standard3P,

@@ -1,7 +1,9 @@
 import {
+  areCitiesLinked,
   canEndTurn,
   canUpgrade,
   cityOwner,
+  fullCityCount,
   getPlayer,
   getPost,
   incomeValue,
@@ -39,6 +41,8 @@ export const executeAction = <T extends ActionName>(
       return RouteEmptyAction(state);
     case "route-office":
       return OfficeAction(state, params as ActionParams<"route-office">);
+    case "route-barrel":
+      return BarrelAction(state, params as ActionParams<"route-barrel">);
     case "route-upgrade":
       return UpgradeAction(state, params as ActionParams<"route-upgrade">);
     case "marker-place":
@@ -292,6 +296,17 @@ export const RouteAction = (s: GameState, params: ActionParams<"route">) => {
       action: { name: "route-upgrade", params: { upgrade: cityTo.upgrade } },
     });
   }
+  if ((route.from === "Coellen" || route.to === "Coellen") && merchants > 0) {
+    s.coellen.forEach((value, index) => {
+      if (value !== null || privilege - 1 < index) {
+        return;
+      }
+      rewards.push({
+        title: `Use a merchant to score ${[7, 8, 9, 11][index]} points`,
+        action: { name: "route-barrel", params: { barrel: index } },
+      });
+    });
+  }
 
   // Collect bonus markers
   let endGame = false;
@@ -340,6 +355,11 @@ export const RouteEmptyAction = (s: GameState) => {
   for (const t of s.context.hand) {
     player.generalStock[t.token] += 1;
   }
+
+  if (s.players.find((p) => p.points >= 20)) {
+    s.context.endGame = true;
+  }
+
   // TODO: last(s.current.prev.actions).description = "Did nothing";
   return s.context.prev!;
 };
@@ -364,44 +384,42 @@ export const OfficeAction = (s: GameState, params: ActionParams<"route-office">)
   cityState.tokens.push({ owner: s.context.player, merch: office.merch });
   player.points += office.point ? 1 : 0;
 
-  // Player has an unused Office marker. We should give him the option to make an extra office.
-  // if (player.readyMarkers.includes("Office")) {
-  //   const rewards: Reward[] = [];
-  //   const { params } = s.current.prev!.actions[s.current.prev!.actions.length - 1] as ActionRecord<"route">;
-  //   const { from, to } = s.map.routes[params!.route];
+  if (!player.linkEastWest && areCitiesLinked(s, "Arnheim", "Stendal", s.context.player)) {
+    player.points += [7, 4, 2, 0, 0][s.players.filter((p) => p.linkEastWest).length];
+    player.linkEastWest = true;
+  }
 
-  //   if (s.cities[from].tokens.length > 0) {
-  //     rewards.push({
-  //       title: `Establish an extra office in ${from}`,
-  //       action: { name: "marker-office", params: { city: from } },
-  //     });
-  //   }
-  //   if (s.cities[to].tokens.length > 0) {
-  //     rewards.push({
-  //       title: `Establish an extra office in ${to}`,
-  //       action: { name: "marker-office", params: { city: to } },
-  //     });
-  //   }
+  if (fullCityCount(s) === 10) {
+    s.context.endGame = true;
+  }
 
-  //   if (rewards.length > 0) {
-  //     return {
-  //       phase: "Route",
-  //       actions: [],
-  //       hand: [],
-  //       rewards: [
-  //         ...rewards,
-  //         {
-  //           title: `Do not use the "extra office" marker`,
-  //           action: { name: "marker-office", params: { city: to } },
-  //         },
-  //       ],
-  //       player: s.current.player,
-  //       prev: s.current.prev!,
-  //     } as PhaseState;
-  //   }
-  // }
+  if (s.players.find((p) => p.points >= 20)) {
+    s.context.endGame = true;
+  }
 
   // TODO: last(s.current.prev.actions).description = "Established an office";
+  return s.context.prev!;
+};
+
+/**
+ * Takes up a Coellen barrel
+ */
+export const BarrelAction = (s: GameState, params: ActionParams<"route-barrel">) => {
+  const player = getPlayer(s);
+  s.context.hand.splice(
+    s.context.hand.findIndex((tok) => tok.token === "m"),
+    1
+  );
+  for (const t of s.context.hand) {
+    player.generalStock[t.token] += 1;
+  }
+  s.context.hand = [];
+  s.coellen[params.barrel] = s.context.player;
+
+  if (s.players.find((p) => p.points >= 20)) {
+    s.context.endGame = true;
+  }
+  // TODO: last(s.current.prev.actions).description = "Scored a barrel";
   return s.context.prev!;
 };
 
@@ -417,6 +435,10 @@ export const UpgradeAction = (s: GameState, params: ActionParams<"route-upgrade"
     player.generalStock[t.token] += 1;
   }
   s.context.hand = [];
+
+  if (s.players.find((p) => p.points >= 20)) {
+    s.context.endGame = true;
+  }
 
   // TODO: last(s.current.prev.actions).description = "Made an upgrade";
   return s.context.prev!;
