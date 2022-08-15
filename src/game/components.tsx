@@ -1,7 +1,6 @@
 import React, { MouseEventHandler, useContext, useEffect, useRef, useState } from "react";
-import { BonusMarkerKind, City, initGameState, Office, PlayerState } from "./model";
+import { BonusMarkerKind, City, Color, initGameState, Office, PlayerState } from "./model";
 import {
-  areCitiesLinked,
   availableActionsCount,
   canEndTurn,
   canMoveOponnentMarkers,
@@ -11,13 +10,12 @@ import {
   fullCityCount,
   getPlayer,
   incomeValue,
-  isCityFull,
-  largestNetwork,
   totalPoints,
 } from "./helpers";
 import { defaultController, GameController, useController } from "./controller";
 
 // Nice yellow: #EEBC1D
+const playerColor = (color: Color) => (color === "yellow" ? "#D4AF37" : color);
 const PrivilegeColorMap = ["white", "#F2AC29", "rgb(255, 145, 207)", "gray"];
 const CityColorMap = (color: City["color"]) => (color === "red" ? "#faa" : color === "yellow" ? "#ffa" : "white");
 const FontSize = 24;
@@ -269,11 +267,13 @@ export const PlayerControls = () => {
       {me === currentPlayer && (
         <>
           {state.context.hand.length > 0 && (
-            <div className={`hand ${me.color}`}>
+            <div className={`hand ${playerColor(me.color)}`}>
               {state.context.hand.map((t, i) => (
                 <div
                   key={i}
-                  className={`token ${t.token === "m" ? "merchant" : "tradesman"} ${state.players[t.owner].color}`}
+                  className={`token ${t.token === "m" ? "merchant" : "tradesman"} ${playerColor(
+                    state.players[t.owner].color
+                  )}`}
                 />
               ))}
             </div>
@@ -361,7 +361,7 @@ export const OfficeComponent = ({ office, order, city }: { office: Office | null
             cx={left + OfficeWidth / 2}
             cy={top + OfficeWidth / 2}
             r={OfficeWidth / 2 - 1}
-            fill={state.players[token.owner].color}
+            fill={playerColor(state.players[token.owner].color)}
             stroke="white"
             strokeWidth="2"
             onClick={claim}
@@ -373,7 +373,7 @@ export const OfficeComponent = ({ office, order, city }: { office: Office | null
             width={OfficeWidth - 4}
             height={OfficeWidth - 4}
             rx="1"
-            fill={state.players[token.owner].color}
+            fill={playerColor(state.players[token.owner].color)}
             stroke="white"
             strokeWidth="2"
             onClick={claim}
@@ -409,7 +409,7 @@ export const CityComponent = ({ cityName }: { cityName: string }) => {
           height={CityHeight}
           rx="6"
           fill={CityColorMap(city.color)}
-          stroke={owner ? owner.color : "black"}
+          stroke={owner ? playerColor(owner.color) : "black"}
           strokeWidth="3"
         />
         {extras.map((token, i) => (
@@ -422,7 +422,7 @@ export const CityComponent = ({ cityName }: { cityName: string }) => {
       <text
         className="title"
         fill="white"
-        stroke={owner ? owner.color : "black"}
+        stroke={owner ? playerColor(owner.color) : "black"}
         strokeWidth="7"
         fontSize={FontSize}
         fontFamily="Monospace"
@@ -531,7 +531,14 @@ export const RouteComponent = ({
 
       {isRouteFull && controller.playerId === getPlayer(state).id && (
         <g className="complete-route" onClick={() => action("route", { route: index })}>
-          <circle cx={ncx} cy={ncy} r={PostRadius} fill={getPlayer(state).color} stroke="black" strokeWidth={2} />
+          <circle
+            cx={ncx}
+            cy={ncy}
+            r={PostRadius}
+            fill={playerColor(getPlayer(state).color)}
+            stroke="black"
+            strokeWidth={2}
+          />
           <path
             style={{ transform: `translate(${ncx - 12}px, ${ncy - 12}px)` }}
             fill="black"
@@ -611,14 +618,14 @@ export const TradingPostComponent = ({
       <circle cx={pos.x} cy={pos.y} r={PostRadius} fill="white" stroke="black" strokeWidth={PostRadius / 4} />
       {owner &&
         (token.merch ? (
-          <circle cx={pos.x} cy={pos.y} r={PostRadius} fill={owner.color} strokeWidth="2" stroke="white" />
+          <circle cx={pos.x} cy={pos.y} r={PostRadius} fill={playerColor(owner.color)} strokeWidth="2" stroke="white" />
         ) : (
           <rect
             x={pos.x - PostRadius / 1.33}
             y={pos.y - PostRadius / 1.33}
             width={PostRadius * 1.5}
             height={PostRadius * 1.5}
-            fill={owner.color}
+            fill={playerColor(owner.color)}
             strokeWidth="2"
             stroke="white"
           />
@@ -700,8 +707,8 @@ export const PlayerQuickInfo = ({ player }: { player: PlayerState }) => {
   const p = player.privilege;
   const o = player.book;
   return (
-    <div className={`player-info ${player.color}`}>
-      <h2 style={{ color: player.color }}>
+    <div className={`player-info ${playerColor(player.color)}`}>
+      <h2 style={{ color: playerColor(player.color) }}>
         {player.name}: {player.points}
         <span className="score">
           (
@@ -748,7 +755,7 @@ export const PlayerQuickInfo = ({ player }: { player: PlayerState }) => {
           )}
         </div>
       </div>
-      <div className={`player-quickinfo ${player.color}`}>
+      <div className={`player-quickinfo ${playerColor(player.color)}`}>
         <div className="upgrades">
           Acts: 2 {a > 1 ? 3 : "⬛"} {a > 2 ? 3 : "⬛"} {a > 3 ? 4 : "⬛"} {a > 4 ? 4 : "⬛"} {a > 5 ? 4 : "⬛"} <br />
           Keys: 1 {k > 1 ? 2 : "⬛"} {k > 2 ? 2 : "⬛"} {k > 3 ? 3 : "⬛"} {a > 4 ? 4 : "⬛"} <br />
@@ -813,7 +820,7 @@ const CoellenBarrels = ({ x, y }: { x: number; y: number }) => {
               cx={25 + i * 35}
               cy="25"
               r="13"
-              fill={state.players[c].color}
+              fill={playerColor(state.players[c].color)}
               stroke="white"
               strokeWidth="2"
             />

@@ -1,7 +1,7 @@
 div#react-root {
   position: absolute;
   inset: 0;
-  background-color: antiquewhite;
+  background-color: #ededed;
 }
 
 div#container {
@@ -40,7 +40,7 @@ div#ui {
       padding: 10px;
       margin: 0 -10px;
       font-size: 20px;
-      background-color: #efefef;
+      background-color: #ededed;
     }
 
     .action-list {
@@ -187,7 +187,7 @@ div#ui {
 svg#map {
   flex: 1;
   box-sizing: border-box;
-  background-color: lighten($color: lightsalmon, $amount: 20);
+  background-color: #ededed;
   .city-group .title {
     paint-order: stroke;
     white-space: pre;

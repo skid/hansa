@@ -29,6 +29,18 @@ function HomePage() {
       <h1>Hansa Teutonica </h1>
       <p>Game {state?.id} </p>
       <p>Share these links to others so you can play.</p>
+      <p>Keep the link to this lobby, because if you lose it you won't be able to come back to the game.</p>
+
+      <h2>How to play</h2>
+      <ul>
+        <li>Right-click drag to pan the map</li>
+        <li>Mousewheel to zoom the map</li>
+        <li>Click on a trading post to place a tradesman</li>
+        <li>Shift-Click for merchants</li>
+        <li>Open the console for gameplay error messages</li>
+        <li>End turn passes control to next player. Can't undo this.</li>
+        <li>Clicking an opponenet's token will attempt to displace it. Can't undo this.</li>
+      </ul>
 
       {state?.players.map((p) => (
         <div key={p.id} className="player-link">
@@ -38,17 +50,6 @@ function HomePage() {
           </div>
         </div>
       ))}
-
-      <h2>How to play</h2>
-      <ul>
-        <li>Right-click drag to pan the map</li>
-        <li>Mousewheel to zoom the map</li>
-        <li>Click on a trading post to place a tradesman</li>
-        <li>Shift-Click for merchants</li>
-        <li>Open the console for gameplay error messages</li>
-        <li>End turn passes control to next player</li>
-        <li>Clicking an opponenet's token will attempt to displace it. Can't undo this.</li>
-      </ul>
     </div>
   );
 }

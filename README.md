@@ -24,21 +24,12 @@
 
 ## Known Bugs
 
-- If a player ends the game by completing a route between two cities, they can not use the "place extra office" marker **during** the route action.
+- If a player ends the game by completing a route between two cities, they can not use the "place extra office" as the game will end before they have a chance to flip it.
 
 ## Contribute / Roadmap
 
-Here's what we have:
-
-- A functional game with all basic actions implemented
-- Flow control / turn management
-- A 3 player game map
-
 What we need to do:
 
-- Score tracking
-- Arnheim-Stendal point rewards
-- Rest of the game ending triggers (marker/cities are done)
 - 4-player map
 - Testing / debugging
 - Not chat

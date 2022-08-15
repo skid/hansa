@@ -30,7 +30,7 @@ function HomePage() {
 
   return (
     <div className="center">
-      <h1>Hansa Teutonica</h1>
+      <h1>Hansa Teutonica Online</h1>
       <p>To create a new game, enter the names of at least 3 players.</p>
 
       <div className="player-conf">
