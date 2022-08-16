@@ -267,13 +267,11 @@ export const PlayerControls = () => {
       {me === currentPlayer && (
         <>
           {state.context.hand.length > 0 && (
-            <div className={`hand ${playerColor(me.color)}`}>
+            <div className={`hand ${me.color}`}>
               {state.context.hand.map((t, i) => (
                 <div
                   key={i}
-                  className={`token ${t.token === "m" ? "merchant" : "tradesman"} ${playerColor(
-                    state.players[t.owner].color
-                  )}`}
+                  className={`token ${t.token === "m" ? "merchant" : "tradesman"} ${state.players[t.owner].color}`}
                 />
               ))}
             </div>
@@ -708,7 +706,7 @@ export const PlayerQuickInfo = ({ player }: { player: PlayerState }) => {
   const p = player.privilege;
   const o = player.book;
   return (
-    <div className={`player-info ${playerColor(player.color)}`}>
+    <div className={`player-info ${player.color}`}>
       <h2 style={{ color: playerColor(player.color) }}>
         {player.name}: {player.points}
         <span className="score">
@@ -756,7 +754,7 @@ export const PlayerQuickInfo = ({ player }: { player: PlayerState }) => {
           )}
         </div>
       </div>
-      <div className={`player-quickinfo ${playerColor(player.color)}`}>
+      <div className={`player-quickinfo ${player.color}`}>
         <div className="upgrades">
           Acts: 2 {a > 1 ? 3 : "⬛"} {a > 2 ? 3 : "⬛"} {a > 3 ? 4 : "⬛"} {a > 4 ? 4 : "⬛"} {a > 5 ? 4 : "⬛"} <br />
           Keys: 1 {k > 1 ? 2 : "⬛"} {k > 2 ? 2 : "⬛"} {k > 3 ? 3 : "⬛"} {a > 4 ? 4 : "⬛"} <br />
