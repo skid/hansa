@@ -220,7 +220,7 @@ export type GameState = {
   map: GameMap;
 };
 
-import { Standard3P } from "./maps";
+import { Standard3P, Standard4P } from "./maps";
 
 const shuffle = <T>(array: T[]) => {
   for (let i = array.length - 1; i > 0; i--) {
@@ -242,6 +242,7 @@ export const initMapState = (map: GameMap): Pick<GameState, "cities" | "routes">
 };
 
 export const initGameState = (players: { [key in Color]?: string }): GameState => {
+  const map = Object.keys(players).length > 3 ? Standard4P : Standard3P;
   return {
     id: v4(),
     turn: 0,
@@ -286,7 +287,7 @@ export const initGameState = (players: { [key in Color]?: string }): GameState =
       "Move 3",
     ],
     coellen: [null, null, null, null],
-    map: Standard3P,
-    ...initMapState(Standard3P),
+    map,
+    ...initMapState(map),
   };
 };

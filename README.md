@@ -30,7 +30,6 @@
 
 What we need to do:
 
-- 4-player map
 - Testing / debugging
 - Not chat
 
