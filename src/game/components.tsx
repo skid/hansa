@@ -292,7 +292,9 @@ export const PlayerControls = () => {
 
           <div className="buttons">
             <button onClick={() => reset()}>Reset Turn</button>
-            {canEndTurn(state) && <button onClick={() => action("done")}>End Turn</button>}
+            {canEndTurn(state) && (
+              <button onClick={() => confirm(`End turn? Can't undo this!`) && action("done")}>End Turn</button>
+            )}
           </div>
         </>
       )}
@@ -606,8 +608,7 @@ export const TradingPostComponent = ({
     } else {
       if (state.context.phase === "Collection" && canMoveOponnentMarkers(state)) {
         action("move-collect", { post: address });
-      } else {
-        // TODO: show an alert to notify that control passes to another player
+      } else if (confirm(`Displace a ${owner.color} token? Can't undo this!`)) {
         action("displace", { post: address, merch: placeMerchant });
       }
     }
