@@ -243,5 +243,5 @@ export const addNeighbors = (map: GameMap): GameMap => {
 export const Standard3P = addNeighbors(BaseMap);
 export const Standard4P = addNeighbors({
   ...BaseMap,
-  routes: [...BaseMap.routes, { from: "Warburg", to: "Gottingen", posts: 3 }, { from: "Enden", to: "Stade", posts: 3 }],
+  routes: [...BaseMap.routes, { from: "Warburg", to: "Gottingen", posts: 3 }, { from: "Emden", to: "Stade", posts: 3 }],
 });
