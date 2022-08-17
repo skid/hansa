@@ -35,3 +35,12 @@ What we need to do:
 
 Here's a good image of the map that can help you:
 ![Hansa](https://user-images.githubusercontent.com/240319/178597097-9775a589-22a8-411c-ad8e-3003734e750f.jpeg)
+
+## TODO
+
+- Implement LOG
+- Draw players in order
+- Beautify the player UI
+- Alert when it's your turn
+- When you need to place displaced tokens, you should be alerted where you;ve been kicked out from
+- Bug when you have no tokens and you need to put a displaced token

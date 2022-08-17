@@ -348,7 +348,9 @@ export const canPlaceBonusMarker = (s: GameState, routeIndex: number) => {
 
 const noMoreTokens = (s: GameState) => {
   const { generalStock, personalSupply } = getPlayer(s);
-  return generalStock.m + generalStock.t + personalSupply.m + personalSupply.t === 0 ? "You have no more tokens" : null;
+  return s.context.hand.length + generalStock.m + generalStock.t + personalSupply.m + personalSupply.t === 0
+    ? "You have no more tokens"
+    : null;
 };
 
 const noActionsRemaining = (s: GameState) =>
