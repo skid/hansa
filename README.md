@@ -43,4 +43,4 @@ Here's a good image of the map that can help you:
 - Beautify the player UI
 - Alert when it's your turn
 - When you need to place displaced tokens, you should be alerted where you;ve been kicked out from
-- Bug when you have no tokens and you need to put a displaced token
+- Limit name length
