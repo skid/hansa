@@ -108,7 +108,14 @@ export const Map = () => {
   return (
     <ControllerContext.Provider
       value={{
-        controller: { state: testState, action: () => {}, reset: () => {}, playerId: "red" },
+        controller: {
+          state: testState,
+          action: () => {},
+          reset: () => {},
+          playerId: "red",
+          error: "",
+          clearError: () => {},
+        },
         ui: { merch: false, setMerch: () => {} },
       }}
     >
@@ -158,13 +165,27 @@ export const Map = () => {
  * Takes a GameState as an input parameter
  */
 export const App = ({ gameId, playerId }: { gameId: string; playerId: string }) => {
+  const refLog = useRef<HTMLDivElement | null>(null);
   const ctrl = useController(gameId, playerId);
   const { groupRef, svgRef, scale, x, y, panStart, pan, panEnd, zoom } = usePanZoom(!!ctrl);
   const [merch, setMerch] = useState(false);
+  const [err, setErr] = useState("");
 
   useEffect(() => {
     if (player) {
       setMerch((player.personalSupply.m > 0 && merch) || player.personalSupply.t === 0);
+    }
+    if (refLog.current) {
+      refLog.current.scrollTop = 100000; // scroll to end
+    }
+  });
+
+  useEffect(() => {
+    const msg = ctrl?.state.isOver ? "GAME OVER!!!" : ctrl?.error || "";
+    setErr(msg);
+
+    if (ctrl && !ctrl.state.isOver && msg) {
+      setTimeout(() => ctrl.clearError(), 2000);
     }
   });
 
@@ -172,52 +193,67 @@ export const App = ({ gameId, playerId }: { gameId: string; playerId: string }) 
     return <div>Loading ... </div>;
   }
 
-  const { map, players } = ctrl.state;
+  const { map, players, isOver } = ctrl.state;
   const player = players.find((p) => p.id === ctrl.playerId)!;
 
   return (
     <ControllerContext.Provider value={{ controller: ctrl, ui: { merch, setMerch } }}>
       <div id="container">
-        <div id="ui">
-          <div id="gameinfo">
-            Markers: {ctrl.state.markers.length} | Full Cities: {fullCityCount(ctrl.state)}/10
-          </div>
+        <div id="container-left">
           <PlayerControls />
         </div>
-        <svg
-          id="map"
-          ref={svgRef}
-          onMouseDown={(e) => {
-            if (e.button === 2) {
-              panStart(e.screenX, e.screenY);
-            }
-          }}
-          onContextMenu={(e) => {
-            e.preventDefault();
-          }}
-          onMouseUp={() => panEnd()}
-          onMouseMove={(e) => pan(e.screenX, e.screenY)}
-          onWheel={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            zoom(-e.deltaY / 2000, e.pageX - rect.left, e.pageY - rect.top);
-          }}
-        >
-          <g ref={groupRef} id="game" transform={`scale(${scale}, ${scale}) translate(${x},${y})`}>
-            <CoellenBarrels x={map.coellen[0]} y={map.coellen[1]} />
-            {map.routes.map((r, i) => (
-              <RouteComponent
-                key={i}
-                index={i}
-                from={map.cities[r.from].position}
-                to={map.cities[r.to].position}
-                posts={r.posts}
-              />
+        <div id="container-right">
+          <div id="gameinfo">
+            {err ? (
+              <span className="blink-me">{err}</span>
+            ) : (
+              <>
+                Markers: {ctrl.state.markers.length} | Full Cities: {fullCityCount(ctrl.state)}/10
+              </>
+            )}
+          </div>
+          <svg
+            id="map"
+            ref={svgRef}
+            onMouseDown={(e) => {
+              if (e.button === 2) {
+                panStart(e.screenX, e.screenY);
+              }
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+            }}
+            onMouseUp={() => panEnd()}
+            onMouseMove={(e) => pan(e.screenX, e.screenY)}
+            onWheel={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              zoom(-e.deltaY / 2000, e.pageX - rect.left, e.pageY - rect.top);
+            }}
+          >
+            <g ref={groupRef} id="game" transform={`scale(${scale}, ${scale}) translate(${x},${y})`}>
+              <CoellenBarrels x={map.coellen[0]} y={map.coellen[1]} />
+              {map.routes.map((r, i) => (
+                <RouteComponent
+                  key={i}
+                  index={i}
+                  from={map.cities[r.from].position}
+                  to={map.cities[r.to].position}
+                  posts={r.posts}
+                />
+              ))}
+              {Object.values(map.cities).map((city) => (
+                <CityComponent key={city.name} cityName={city.name} />
+              ))}
+            </g>
+          </svg>
+          <div id="log" ref={refLog}>
+            {ctrl.state.log.map((e, i) => (
+              <div key={i} className={`message`} style={{ color: playerColor(players[e.player]?.color || "black") }}>
+                {e.message}
+              </div>
             ))}
-            {Object.values(map.cities).map((city) => (
-              <CityComponent key={city.name} cityName={city.name} />
-            ))}
-          </g>
-        </svg>
+          </div>
+        </div>
       </div>
     </ControllerContext.Provider>
   );
@@ -231,6 +267,12 @@ export const PlayerControls = () => {
 
   const acts = availableActionsCount(state) - state.context.actions.filter((a) => a.name !== "marker-use").length;
   const { phase } = state.context;
+
+  // Makes sure the current player is always rendered first
+  const playerOrder = state.players.slice();
+  while (me !== playerOrder[0]) {
+    playerOrder.unshift(playerOrder.pop()!);
+  }
 
   return (
     <div className={`player-controls`}>
@@ -297,13 +339,9 @@ export const PlayerControls = () => {
         </>
       )}
 
-      <PlayerQuickInfo player={me} />
-
-      {state.players
-        .filter((p) => p !== me)
-        .map((p) => {
-          return <PlayerQuickInfo key={p.id} player={p} />;
-        })}
+      {playerOrder.map((p) => (
+        <PlayerQuickInfo key={p.id} player={p} />
+      ))}
     </div>
   );
 };

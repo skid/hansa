@@ -172,6 +172,11 @@ export type PlayerState = {
   linkEastWest?: true;
 };
 
+export type LogEntry = {
+  player: number;
+  message: String;
+};
+
 export type GameState = {
   /**
    * The Game ID
@@ -218,6 +223,16 @@ export type GameState = {
    * The map we're playing
    */
   map: GameMap;
+
+  /**
+   * The game log, displayed to the user
+   */
+  log: LogEntry[];
+
+  /**
+   * True if the game is over
+   */
+  isOver: boolean;
 };
 
 import { Standard3P, Standard4P } from "./maps";
@@ -287,6 +302,8 @@ export const initGameState = (players: { [key in Color]?: string }): GameState =
       "Move 3",
     ],
     coellen: [null, null, null, null],
+    log: [{ player: -1, message: "A new game begins!" }],
+    isOver: false,
     map,
     ...initMapState(map),
   };

@@ -38,9 +38,4 @@ Here's a good image of the map that can help you:
 
 ## TODO
 
-- Implement LOG
-- Draw players in order
-- Beautify the player UI
-- Alert when it's your turn
-- When you need to place displaced tokens, you should be alerted where you;ve been kicked out from
-- Limit name length
+- Alert when it's your turn to make a move (either place displaced tokens or your turn has started)

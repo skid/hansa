@@ -8,14 +8,17 @@ import { supabase } from "../supabase";
 export type GameController = {
   playerId: string;
   state: GameState;
+  error: string;
   action: Action;
   reset: () => void;
+  clearError: () => void;
 };
 
 /**
  * Creates a new game client.
  */
 export const useController = (gameId: string, playerId: string): GameController | null => {
+  const [errorMessage, setErrorMessage] = useState("");
   const [originalState, setOriginalState] = useState<GameState>();
   const [immutableState, setState] = useState<GameState>();
 
@@ -78,10 +81,18 @@ export const useController = (gameId: string, playerId: string): GameController 
         if (getPlayer(immutableState!).id !== playerId) {
           return immutableState;
         }
+
+        if (immutableState?.isOver && immutableState.context.phase !== "Route" && name !== "done") {
+          console.log("Game is over");
+          setErrorMessage("Game Over");
+          return immutableState;
+        }
+
         const error = validateAction(name, immutableState!, params);
 
         if (error) {
           console.log(error);
+          setErrorMessage(error);
           return immutableState;
         }
 
@@ -100,6 +111,10 @@ export const useController = (gameId: string, playerId: string): GameController 
 
           // Replace the `current` state with the new one
           draft.context = context;
+
+          if (context.endGame) {
+            draft.isOver = true;
+          }
         });
 
         if (newState?.context.player !== immutableState?.context.player) {
@@ -119,7 +134,9 @@ export const useController = (gameId: string, playerId: string): GameController 
   return {
     playerId,
     state: immutableState,
+    error: errorMessage,
     action,
+    clearError: () => setErrorMessage(""),
     reset: () => {
       setState(originalState);
     },
@@ -129,8 +146,10 @@ export const useController = (gameId: string, playerId: string): GameController 
 export const defaultController: GameController = Object.freeze({
   playerId: "",
   state: {} as any,
+  error: "",
   action: () => {
     throw new Error("Can't use default controller, please instantiate a new one!");
   },
   reset: () => {},
+  clearError: () => {},
 });
