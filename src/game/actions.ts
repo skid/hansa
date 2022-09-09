@@ -102,18 +102,22 @@ export const IncomeAction = (s: GameState) => {
   const { generalStock, personalSupply, name } = getPlayer(s);
 
   let val = incomeValue(s);
+  let merchs = 0;
+  let trades = 0;
   while (val > 0 && generalStock.m + generalStock.t > 0) {
     val--;
     if (generalStock.m) {
       personalSupply.m++;
       generalStock.m--;
+      merchs++;
     } else {
       personalSupply.t++;
       generalStock.t--;
+      trades++;
     }
   }
 
-  s.log.push({ player: s.context.player, message: `${name} purchases ${val - 1} tokens` });
+  s.log.push({ player: s.context.player, message: `${name} purchases ${trades} + ${merchs} tokens` });
   return s.context;
 };
 
@@ -364,9 +368,17 @@ export const RouteAction = (s: GameState, params: ActionParams<"route">) => {
   const toOwner = cityOwner(s, route.to);
   if (fromOwner !== -1) {
     s.players[fromOwner].points += 1;
+    s.log.push({
+      player: fromOwner,
+      message: `${s.players[fromOwner].name} scores 1 because they own ${route.from}`,
+    });
   }
   if (toOwner !== -1) {
     s.players[toOwner].points += 1;
+    s.log.push({
+      player: toOwner,
+      message: `${s.players[toOwner].name} scores 1 because they own ${route.to}`,
+    });
   }
 
   // Remove all tokens from the route and put them in the player's hand
@@ -439,8 +451,13 @@ export const OfficeAction = (s: GameState, params: ActionParams<"route-office">)
   player.points += office.point ? 1 : 0;
 
   if (!player.linkEastWest && areCitiesLinked(s, "Arnheim", "Stendal", s.context.player)) {
-    player.points += [7, 4, 2, 0, 0][s.players.filter((p) => p.linkEastWest).length];
+    const awardedPoints = [7, 4, 2, 0, 0][s.players.filter((p) => p.linkEastWest).length];
+    player.points += awardedPoints;
     player.linkEastWest = true;
+    s.log.push({
+      player: s.context.player,
+      message: `${player.name} scores ${awardedPoints} for completing the east-west route`,
+    });
   }
 
   s.log.push({
@@ -636,7 +653,8 @@ export const MarkerSwapAction = (s: GameState, params: ActionParams<"marker-swap
  * Tries to use a tradesman, then merchant from the general stock, then personal supply
  */
 export const MarkerOfficeAction = (s: GameState, params: ActionParams<"marker-office">) => {
-  const { generalStock, personalSupply, name } = getPlayer(s);
+  const player = getPlayer(s);
+  const { generalStock, personalSupply } = player;
   let merch = false;
 
   if (generalStock.t) {
@@ -655,7 +673,23 @@ export const MarkerOfficeAction = (s: GameState, params: ActionParams<"marker-of
   s.cities[params.city].extras.unshift({ owner: s.context.player, merch });
   s.log.push({
     player: s.context.player,
-    message: `${name} sets up an extra office in ${params.city}`,
+    message: `${player.name} sets up an extra office in ${params.city}`,
   });
+
+  if (!player.linkEastWest && areCitiesLinked(s, "Arnheim", "Stendal", s.context.player)) {
+    const awardedPoints = [7, 4, 2, 0, 0][s.players.filter((p) => p.linkEastWest).length];
+    player.points += awardedPoints;
+    player.linkEastWest = true;
+    s.log.push({
+      player: s.context.player,
+      message: `${player.name} scores ${awardedPoints} for completing the east-west route`,
+    });
+  }
+
+  if (s.players.find((p) => p.points >= 20)) {
+    s.context.prev!.endGame = true;
+    s.log.push({ player: -1, message: `Game over due to a player reaching 20 points` });
+  }
+
   return s.context.prev!;
 };
