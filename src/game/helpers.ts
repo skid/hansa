@@ -308,10 +308,12 @@ export const validExtraOfficeLocations = (s: GameState) => {
   for (const a of s.context.actions) {
     if (a.name === "route" && a.contextActions?.length && a.contextActions[0].name === "route-office") {
       const route = s.map.routes[(a as ActionRecord<"route">).params!.route];
-      if (s.cities[route.from].tokens.length > 0) {
+      const justEstablished = (a.contextActions[0].params as ActionParams<"route-office">).city;
+
+      if (s.cities[route.from].tokens.length > (justEstablished === route.from ? 1 : 0)) {
         cities.push(route.from);
       }
-      if (s.cities[route.to].tokens.length > 0) {
+      if (s.cities[route.to].tokens.length > (justEstablished === route.to ? 1 : 0)) {
         cities.push(route.to);
       }
     }
