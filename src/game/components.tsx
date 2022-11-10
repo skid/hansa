@@ -170,6 +170,8 @@ export const App = ({ gameId, playerId }: { gameId: string; playerId: string }) 
   const { groupRef, svgRef, scale, x, y, panStart, pan, panEnd, zoom } = usePanZoom(!!ctrl);
   const [merch, setMerch] = useState(false);
   const [err, setErr] = useState("");
+  const [alertState, setAlertState] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
 
   useEffect(() => {
     if (player) {
@@ -196,6 +198,25 @@ export const App = ({ gameId, playerId }: { gameId: string; playerId: string }) 
   const { map, players, isOver } = ctrl.state;
   const player = players.find((p) => p.id === ctrl.playerId)!;
 
+  const me = ctrl.state.players.find((p) => p.id === playerId)!;
+  const currentPlayer = getPlayer(ctrl.state);
+
+  if (initialLoad && me === currentPlayer) {
+    setAlertState(true);
+    setInitialLoad(false);
+  }
+
+  if (!initialLoad && me !== currentPlayer) {
+    setInitialLoad(true);
+  }
+
+  const disableAlertOverlay = () => {
+    setAlertState(false);
+  };
+
+  const alertOverlayMsg = ctrl.state.context.phase === "Displacement" ? <div><p>You were kicked!</p><p>Place your pieces.</p></div>  : "It's your turn!";
+  const alertClasses = alertState ? "alert-overlay" : "hide";
+
   return (
     <ControllerContext.Provider value={{ controller: ctrl, ui: { merch, setMerch } }}>
       <div id="container">
@@ -203,6 +224,9 @@ export const App = ({ gameId, playerId }: { gameId: string; playerId: string }) 
           <PlayerControls />
         </div>
         <div id="container-right">
+          <div className={alertClasses} onClick={(e) => {disableAlertOverlay();}}>
+            <div id="alert-text">{alertOverlayMsg}</div>
+          </div>
           <div id="gameinfo">
             {err ? (
               <span className="blink-me">{err}</span>
