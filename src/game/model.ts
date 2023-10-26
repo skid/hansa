@@ -256,6 +256,37 @@ export const initMapState = (map: GameMap): Pick<GameState, "cities" | "routes">
   };
 };
 
+export const initPlayersState = (players: { [key in Color]?: string }) => {
+  const shuffledPlayers = shuffle(
+    (Object.keys(players) as Color[]).map((color) => ({
+      id: v4(),
+      color,
+      name: players[color]!,
+      generalStock: { m: 0, t: 6 },
+      personalSupply: { m: 1, t: 5 },
+      keys: 1,
+      privilege: 1,
+      actions: 1,
+      bank: 1,
+      book: 1,
+      points: 0,
+      readyMarkers: [],
+      // readyMarkers: ["Upgrade", "Swap", "3 Actions", "Office", "4 Actions", "Move 3"],
+      usedMarkers: [],
+      unplacedMarkers: [],
+    }))
+  )
+
+  var orderHandicapTokens = 0;
+  shuffledPlayers.forEach(player => {
+    player.personalSupply.t += orderHandicapTokens;
+    player.generalStock.t -= orderHandicapTokens;
+    orderHandicapTokens++;
+  });
+
+  return shuffledPlayers;
+}
+
 export const initGameState = (players: { [key in Color]?: string }): GameState => {
   const map = Object.keys(players).length > 3 ? Standard4P : Standard3P;
   return {
@@ -267,25 +298,7 @@ export const initGameState = (players: { [key in Color]?: string }): GameState =
       actions: [],
       hand: [],
     },
-    players: shuffle(
-      (Object.keys(players) as Color[]).map((color) => ({
-        id: v4(),
-        color,
-        name: players[color]!,
-        generalStock: { m: 0, t: 7 },
-        personalSupply: { m: 1, t: 4 },
-        keys: 1,
-        privilege: 1,
-        actions: 1,
-        bank: 1,
-        book: 1,
-        points: 0,
-        readyMarkers: [],
-        // readyMarkers: ["Upgrade", "Swap", "3 Actions", "Office", "4 Actions", "Move 3"],
-        usedMarkers: [],
-        unplacedMarkers: [],
-      }))
-    ),
+    players: initPlayersState(players),
     markers: [
       "Office",
       "Office",
