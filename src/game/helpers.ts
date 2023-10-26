@@ -300,26 +300,6 @@ export const canSwapOffice = (s: GameState, cityName: string, office: number) =>
   );
 };
 
-/**
- * Returns the cities where you are allowed to place an extra office this turn
- */
-export const validExtraOfficeLocations = (s: GameState) => {
-  const cities: string[] = [];
-  for (const a of s.context.actions) {
-    if (a.name === "route" && a.contextActions?.length && a.contextActions[0].name === "route-office") {
-      const route = s.map.routes[(a as ActionRecord<"route">).params!.route];
-      const justEstablished = (a.contextActions[0].params as ActionParams<"route-office">).city;
-
-      if (s.cities[route.from].tokens.length > (justEstablished === route.from ? 1 : 0)) {
-        cities.push(route.from);
-      }
-      if (s.cities[route.to].tokens.length > (justEstablished === route.to ? 1 : 0)) {
-        cities.push(route.to);
-      }
-    }
-  }
-  return cities;
-};
 
 /**
  * Returns true if the passed city is full
@@ -401,10 +381,6 @@ const hasNoSwappableOffice = (s: GameState) => {
   })
     ? null
     : "No office eligible for swapping";
-};
-
-const cantEstablishExtraOffice = (s: GameState) => {
-  validExtraOfficeLocations(s).length === 0 ? "You haven't established any offices this turn" : null;
 };
 
 const insufficientPrivilegeForCity = (s: GameState, cityName: string) => {
@@ -495,14 +471,13 @@ export const validateAction = <T extends ActionName>(name: T, s: GameState, para
     return (
       gamePhaseIsNot(s, ["Actions"]) ||
       (kind === "Upgrade" && hasNoUpgradesLeft(s)) ||
-      (kind === "Swap" && hasNoSwappableOffice(s)) ||
-      (kind === "Office" && cantEstablishExtraOffice(s))
+      (kind === "Swap" && hasNoSwappableOffice(s))
     );
   } else if (name === "marker-swap") {
     const { city, office } = params as ActionParams<"marker-swap">;
     return gamePhaseIsNot(s, ["Swap"]) || (canSwapOffice(s, city, office) ? null : "Can't swap that office");
   } else if (name === "marker-office") {
-    gamePhaseIsNot(s, ["Office"]);
+    gamePhaseIsNot(s, ["Route"]);
   } else if (name === "done") {
     // TODO: validate
   }

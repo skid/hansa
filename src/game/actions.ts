@@ -7,7 +7,6 @@ import {
   getPlayer,
   getPost,
   incomeValue,
-  validExtraOfficeLocations,
 } from "./helpers";
 import { ActionName, ActionParams, PhaseContext, GameState, TokenState, Reward, ActionRecord } from "./model";
 
@@ -350,6 +349,34 @@ export const RouteAction = (s: GameState, params: ActionParams<"route">) => {
     });
   }
 
+  // check if player have the extra office marker
+  if (getPlayer(s).readyMarkers.includes("Office")) {
+    // applicable only if city already contains at least one token
+    if (cFrom.tokens.length > 0) {
+      rewards.push(
+        {
+          title: `Marker: establish an extra office in ${route.from}`,
+          action: {
+            name: "marker-office",
+            params: { city: route.from },
+          },
+        }
+      );
+    }
+
+    if (cTo.tokens.length > 0) {
+      rewards.push(
+        {
+          title: `Marker: establish an extra office in ${route.to}`,
+          action: {
+            name: "marker-office",
+            params: { city: route.to },
+          },
+        }
+      );
+    }
+  }
+
   // Collect bonus markers
   let endGame = false;
   if (r.marker) {
@@ -610,21 +637,6 @@ export const MarkerUseAction = (s: GameState, params: ActionParams<"marker-use">
       hand: [],
       actions: [],
     } as PhaseContext;
-  } else if (params.kind === "Office") {
-    return {
-      phase: "Office",
-      player: s.context.player,
-      prev: s.context,
-      hand: [],
-      actions: [],
-      rewards: validExtraOfficeLocations(s).map((city) => ({
-        title: `Establish an extra office in ${city}`,
-        action: {
-          name: "marker-office",
-          params: { city },
-        },
-      })),
-    } as PhaseContext;
   }
   return s.context;
 };
@@ -675,6 +687,14 @@ export const MarkerOfficeAction = (s: GameState, params: ActionParams<"marker-of
     player: s.context.player,
     message: `${player.name} sets up an extra office in ${params.city}`,
   });
+
+  // use up the Office marker, because it's not separate action, it's a part of reward
+  const p = getPlayer(s);
+  const [marker] = p.readyMarkers.splice(
+    p.readyMarkers.findIndex((m) => m === "Office"),
+    1
+  );
+  p.usedMarkers.push(marker);
 
   if (!player.linkEastWest && areCitiesLinked(s, "Arnheim", "Stendal", s.context.player)) {
     const awardedPoints = [7, 4, 2, 0, 0][s.players.filter((p) => p.linkEastWest).length];
