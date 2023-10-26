@@ -195,6 +195,7 @@ export const App = ({ gameId, playerId }: { gameId: string; playerId: string }) 
 
   const { map, players, isOver } = ctrl.state;
   const player = players.find((p) => p.id === ctrl.playerId)!;
+  const maxPoints = players.reduce((max, curPlayer) => Math.max(max, curPlayer.points), 0);
 
   return (
     <ControllerContext.Provider value={{ controller: ctrl, ui: { merch, setMerch } }}>
@@ -208,7 +209,7 @@ export const App = ({ gameId, playerId }: { gameId: string; playerId: string }) 
               <span className="blink-me">{err}</span>
             ) : (
               <>
-                Markers: {ctrl.state.markers.length} | Full Cities: {fullCityCount(ctrl.state)}/10
+                  Markers: {ctrl.state.markers.length} | Full Cities: {fullCityCount(ctrl.state)}/10 | VPs: {maxPoints}/20
               </>
             )}
           </div>
@@ -794,8 +795,8 @@ export const PlayerQuickInfo = ({ player }: { player: PlayerState }) => {
       </div>
       <div className={`player-quickinfo ${player.color}`}>
         <div className="upgrades">
-          Acts: 2 {a > 1 ? 3 : "⬛"} {a > 2 ? 3 : "⬛"} {a > 3 ? 4 : "⬛"} {a > 4 ? 4 : "⬛"} {a > 5 ? 4 : "⬛"} <br />
-          Keys: 1 {k > 1 ? 2 : "⬛"} {k > 2 ? 2 : "⬛"} {k > 3 ? 3 : "⬛"} {a > 4 ? 4 : "⬛"} <br />
+          Acts: 2 {a > 1 ? 3 : "⬛"} {a > 2 ? 3 : "⬛"} {a > 3 ? 4 : "⬛"} {a > 4 ? 4 : "⬛"} {a > 5 ? 5 : "⬛"} <br />
+          Keys: 1 {k > 1 ? 2 : "⬛"} {k > 2 ? 2 : "⬛"} {k > 3 ? 3 : "⬛"} {k > 4 ? 4 : "⬛"} <br />
           Bank: 3 {b > 1 ? 5 : "⬛"} {b > 2 ? 7 : "⬛"} {b > 3 ? "C" : "⬛"} <br />
           Book: 2 {o > 1 ? "3" : "⚫"} {o > 2 ? "4" : "⚫"} {o > 3 ? "5" : "⚫"} <br />
           Priv: ○ {p > 1 ? "🟠" : "⬛"} {p > 2 ? "🟣" : "⬛"} {p > 3 ? "⚫" : "⬛"}
